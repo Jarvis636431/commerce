@@ -3,6 +3,7 @@ package com.jarvis.commerce.common;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,6 +42,14 @@ public class GlobalExceptionHandler {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, "The request conflicts with existing data");
         detail.setTitle("Data conflict");
+        return detail;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ProblemDetail handleConcurrentUpdate(ObjectOptimisticLockingFailureException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "Inventory was changed concurrently; retry with fresh data");
+        detail.setTitle("Concurrent update conflict");
         return detail;
     }
 }
