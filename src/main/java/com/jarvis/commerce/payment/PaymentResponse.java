@@ -13,11 +13,13 @@ public record PaymentResponse(
         String failureReason,
         long version,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        OffsetDateTime expiresAt
 ) {
     static PaymentResponse from(PaymentOrder payment) {
         return new PaymentResponse(payment.getId(), payment.getPaymentNo(), payment.getOrder().getId(),
                 payment.getAmount(), payment.getStatus(), payment.getExternalTransactionNo(),
-                payment.getFailureReason(), payment.getVersion(), payment.getCreatedAt(), payment.getUpdatedAt());
+                payment.getFailureReason(), payment.getVersion(), payment.getCreatedAt(), payment.getUpdatedAt(),
+                payment.getExpiresAt());
     }
 }

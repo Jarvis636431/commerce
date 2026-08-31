@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     ProblemDetail handleConcurrentUpdate(ObjectOptimisticLockingFailureException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, "Inventory was changed concurrently; retry with fresh data");
+                HttpStatus.CONFLICT, "The resource was changed concurrently; retry with fresh data");
         detail.setTitle("Concurrent update conflict");
         return detail;
     }

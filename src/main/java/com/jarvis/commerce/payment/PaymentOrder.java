@@ -62,15 +62,20 @@ public class PaymentOrder {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "expires_at", nullable = false)
+    private OffsetDateTime expiresAt;
+
     protected PaymentOrder() {
     }
 
-    public PaymentOrder(String paymentNo, CustomerOrder order, String idempotencyKey, BigDecimal amount) {
+    public PaymentOrder(String paymentNo, CustomerOrder order, String idempotencyKey, BigDecimal amount,
+                        OffsetDateTime expiresAt) {
         this.paymentNo = paymentNo;
         this.order = order;
         this.idempotencyKey = idempotencyKey;
         this.amount = amount;
         this.status = PaymentStatus.PENDING;
+        this.expiresAt = expiresAt;
     }
 
     public void markSuccess(String externalTransactionNo) {
@@ -91,12 +96,17 @@ public class PaymentOrder {
         this.status = PaymentStatus.CLOSED;
     }
 
-    public void retry() {
+    public void retry(OffsetDateTime newExpiresAt) {
         if (status != PaymentStatus.FAILED) {
             throw new ConflictException("Only failed payments can be retried");
         }
         this.status = PaymentStatus.PENDING;
         this.failureReason = null;
+        this.expiresAt = newExpiresAt;
+    }
+
+    public boolean isExpiredAt(OffsetDateTime time) {
+        return !expiresAt.isAfter(time);
     }
 
     private void requirePending(String message) {
@@ -128,4 +138,5 @@ public class PaymentOrder {
     public long getVersion() { return version; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public OffsetDateTime getExpiresAt() { return expiresAt; }
 }

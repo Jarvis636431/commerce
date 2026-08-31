@@ -43,6 +43,7 @@ class PaymentControllerTests {
     @Autowired private OrderService orderService;
     @Autowired private CustomerOrderRepository orderRepository;
     @Autowired private PaymentOrderRepository paymentRepository;
+    @Autowired private PaymentTimeoutService paymentTimeoutService;
 
     private Long skuId;
     private Long orderId;
@@ -139,6 +140,25 @@ class PaymentControllerTests {
         Inventory inventory = inventoryRepository.findBySkuId(skuId).orElseThrow();
         assertEquals(10, inventory.getAvailableQuantity());
         assertEquals(0, inventory.getReservedQuantity());
+    }
+
+    @Test
+    void expiresPaymentAndRejectsLateSuccess() throws Exception {
+        String paymentNo = createPayment("payment-key-timeout");
+        PaymentOrder payment = paymentRepository.findByPaymentNo(paymentNo).orElseThrow();
+
+        int expired = paymentTimeoutService.expireDuePayments(payment.getExpiresAt().plusSeconds(1));
+
+        assertEquals(1, expired);
+        assertEquals(PaymentStatus.CLOSED, paymentRepository.findByPaymentNo(paymentNo).orElseThrow().getStatus());
+        assertEquals(OrderStatus.CANCELLED, orderRepository.findById(orderId).orElseThrow().getStatus());
+        Inventory inventory = inventoryRepository.findBySkuId(skuId).orElseThrow();
+        assertEquals(10, inventory.getAvailableQuantity());
+        assertEquals(0, inventory.getReservedQuantity());
+
+        sendSuccess(paymentNo, """
+                {"notificationId":"late-notice","externalTransactionNo":"late-tx","amount":199.80}
+                """).andExpect(status().isConflict());
     }
 
     private String createPayment(String idempotencyKey) throws Exception {

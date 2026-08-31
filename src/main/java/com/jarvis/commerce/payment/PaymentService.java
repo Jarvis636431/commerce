@@ -7,8 +7,12 @@ import com.jarvis.commerce.order.CustomerOrderRepository;
 import com.jarvis.commerce.order.OrderService;
 import com.jarvis.commerce.order.OrderStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
@@ -18,15 +22,21 @@ public class PaymentService {
     private final PaymentNotificationRepository notificationRepository;
     private final CustomerOrderRepository orderRepository;
     private final OrderService orderService;
+    private final Clock clock;
+    private final Duration paymentTimeout;
 
     public PaymentService(PaymentOrderRepository paymentRepository,
                           PaymentNotificationRepository notificationRepository,
                           CustomerOrderRepository orderRepository,
-                          OrderService orderService) {
+                          OrderService orderService,
+                          Clock clock,
+                          @Value("${commerce.payment.timeout:PT15M}") Duration paymentTimeout) {
         this.paymentRepository = paymentRepository;
         this.notificationRepository = notificationRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
+        this.clock = clock;
+        this.paymentTimeout = paymentTimeout;
     }
 
     @Transactional
@@ -49,7 +59,8 @@ public class PaymentService {
         }
 
         PaymentOrder payment = paymentRepository.save(new PaymentOrder(
-                generatePaymentNo(), order, idempotencyKey, order.getTotalAmount()));
+                generatePaymentNo(), order, idempotencyKey, order.getTotalAmount(),
+                OffsetDateTime.now(clock).plus(paymentTimeout)));
         return PaymentResponse.from(payment);
     }
 
@@ -66,6 +77,10 @@ public class PaymentService {
         }
         if (payment.getAmount().compareTo(notification.amount()) != 0) {
             throw new ConflictException("Paid amount does not match the payment amount");
+        }
+        if (payment.getStatus() == PaymentStatus.PENDING
+                && payment.isExpiredAt(OffsetDateTime.now(clock))) {
+            throw new ConflictException("Payment has expired and cannot be completed");
         }
         if (payment.getStatus() == PaymentStatus.SUCCESS) {
             if (!payment.getExternalTransactionNo().equals(notification.externalTransactionNo().trim())) {
@@ -105,9 +120,24 @@ public class PaymentService {
     @Transactional
     public PaymentResponse retry(String paymentNo) {
         PaymentOrder payment = findPayment(paymentNo);
-        payment.retry();
+        if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new ConflictException("Payment cannot be retried because the order is no longer pending");
+        }
+        payment.retry(OffsetDateTime.now(clock).plus(paymentTimeout));
         paymentRepository.flush();
         return PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public boolean expireIfDue(String paymentNo, OffsetDateTime now) {
+        PaymentOrder payment = findPayment(paymentNo);
+        if (payment.getStatus() != PaymentStatus.PENDING || !payment.isExpiredAt(now)) {
+            return false;
+        }
+        payment.close();
+        orderService.cancel(payment.getOrder().getId());
+        paymentRepository.flush();
+        return true;
     }
 
     private PaymentOrder findPayment(String paymentNo) {

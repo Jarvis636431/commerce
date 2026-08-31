@@ -12,6 +12,7 @@
 - 订单创建、查询、支付确认、取消和完成
 - 订单项成交快照和订单级库存预占记录
 - 支付单、幂等创建、模拟支付通知和重复通知去重
+- 支付超时扫描、自动取消订单和库存释放
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -204,6 +205,15 @@ POST /api/payments/{paymentNo}/mock-success
 POST /api/payments/{paymentNo}/mock-failure
 POST /api/payments/{paymentNo}/retry
 POST /api/payments/{paymentNo}/close
+```
+
+支付默认在创建 15 分钟后过期。应用每 60 秒扫描一次到期支付，可通过以下配置调整：
+
+```yaml
+commerce:
+  payment:
+    timeout: PT15M
+    timeout-scan-interval: 60000
 ```
 
 ## 后续路线
