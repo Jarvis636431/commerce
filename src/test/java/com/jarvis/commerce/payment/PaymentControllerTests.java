@@ -12,6 +12,11 @@ import com.jarvis.commerce.product.Product;
 import com.jarvis.commerce.product.ProductRepository;
 import com.jarvis.commerce.product.Sku;
 import com.jarvis.commerce.product.SkuRepository;
+import com.jarvis.commerce.user.AddressRequest;
+import com.jarvis.commerce.user.User;
+import com.jarvis.commerce.user.UserAddress;
+import com.jarvis.commerce.user.UserAddressRepository;
+import com.jarvis.commerce.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +49,8 @@ class PaymentControllerTests {
     @Autowired private CustomerOrderRepository orderRepository;
     @Autowired private PaymentOrderRepository paymentRepository;
     @Autowired private PaymentTimeoutService paymentTimeoutService;
+    @Autowired private UserRepository userRepository;
+    @Autowired private UserAddressRepository addressRepository;
 
     private Long skuId;
     private Long orderId;
@@ -58,7 +65,13 @@ class PaymentControllerTests {
         productRepository.flush();
         skuId = sku.getId();
 
+        User user = userRepository.save(new User("payment-user-" + System.nanoTime(),
+                "payment-" + System.nanoTime() + "@example.com", null));
+        UserAddress address = addressRepository.save(new UserAddress(user.getId(), new AddressRequest(
+                "家", "Jarvis", "13800138000", "北京", "北京市", "海淀区", "支付路1号", null, true), true));
+
         OrderResponse order = orderService.create(new CreateOrderRequest(
+                user.getId(), address.getId(),
                 List.of(new CreateOrderItemRequest(skuId, 2))));
         orderId = order.id();
     }

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
 
@@ -37,9 +38,9 @@ public class OrderController {
     }
 
     @GetMapping
-    public PageResponse<OrderResponse> list(
+    public PageResponse<OrderResponse> list(@RequestParam(required = false) Long userId,
             @PageableDefault(size = 20, sort = "id", direction = DESC) Pageable pageable) {
-        return orderService.list(pageable);
+        return userId == null ? orderService.list(pageable) : orderService.listByUser(userId, pageable);
     }
 
     @PostMapping("/{id}/cancel")

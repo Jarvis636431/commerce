@@ -8,6 +8,8 @@ import com.jarvis.commerce.inventory.InventoryService;
 import com.jarvis.commerce.product.ProductStatus;
 import com.jarvis.commerce.product.Sku;
 import com.jarvis.commerce.product.SkuRepository;
+import com.jarvis.commerce.user.UserAddress;
+import com.jarvis.commerce.user.UserAddressService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,24 +30,29 @@ public class OrderService {
     private final InventoryReservationRepository reservationRepository;
     private final SkuRepository skuRepository;
     private final InventoryService inventoryService;
+    private final UserAddressService addressService;
 
     public OrderService(CustomerOrderRepository orderRepository, OrderItemRepository itemRepository,
                         InventoryReservationRepository reservationRepository, SkuRepository skuRepository,
-                        InventoryService inventoryService) {
+                        InventoryService inventoryService, UserAddressService addressService) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.reservationRepository = reservationRepository;
         this.skuRepository = skuRepository;
         this.inventoryService = inventoryService;
+        this.addressService = addressService;
     }
 
     @Transactional
     public OrderResponse create(CreateOrderRequest request) {
+        UserAddress address = addressService.requireUsableAddress(request.userId(), request.addressId());
         Map<Long, Integer> quantities = aggregateQuantities(request.items());
         List<SkuLine> lines = loadLines(quantities);
         BigDecimal total = lines.stream().map(SkuLine::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        CustomerOrder order = orderRepository.save(new CustomerOrder(generateOrderNo(), total));
+        CustomerOrder order = orderRepository.save(new CustomerOrder(generateOrderNo(), total, request.userId(),
+                address.getReceiverName(), address.getPhone(), address.getProvince(), address.getCity(),
+                address.getDistrict(), address.getDetailAddress(), address.getPostalCode()));
         List<OrderItem> items = new ArrayList<>();
         List<InventoryReservation> reservations = new ArrayList<>();
 
@@ -70,6 +77,12 @@ public class OrderService {
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> list(Pageable pageable) {
         Page<CustomerOrder> orders = orderRepository.findAll(pageable);
+        return PageResponse.from(orders, this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> listByUser(long userId, Pageable pageable) {
+        Page<CustomerOrder> orders = orderRepository.findAllByUserId(userId, pageable);
         return PageResponse.from(orders, this::toResponse);
     }
 

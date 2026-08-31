@@ -14,6 +14,7 @@
 - 支付单、幂等创建、模拟支付通知和重复通知去重
 - 支付超时扫描、自动取消订单和库存释放
 - 用户创建、查询、资料修改和启用/禁用
+- 用户收货地址管理、默认地址和订单地址快照
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -176,6 +177,17 @@ POST /api/users/{id}/disable
 POST /api/users/{id}/enable
 ```
 
+### Address
+
+```http
+POST   /api/users/{userId}/addresses
+GET    /api/users/{userId}/addresses
+GET    /api/users/{userId}/addresses/{addressId}
+PUT    /api/users/{userId}/addresses/{addressId}
+POST   /api/users/{userId}/addresses/{addressId}/default
+DELETE /api/users/{userId}/addresses/{addressId}
+```
+
 ### SKU
 
 ```http
@@ -201,7 +213,7 @@ POST /api/skus/{skuId}/inventory/release
 ```http
 POST /api/orders
 GET  /api/orders/{id}
-GET  /api/orders?page=0&size=20
+GET  /api/orders?page=0&size=20&userId=1
 POST /api/orders/{id}/pay
 POST /api/orders/{id}/cancel
 POST /api/orders/{id}/complete
@@ -232,7 +244,8 @@ commerce:
 ## 后续路线
 
 1. 真实支付渠道、签名验证和支付查询补偿
-2. 收货地址与订单用户归属
-3. Redis 商品缓存与购物车
+2. Redis 购物车
+3. Redis 商品缓存
 4. MQ 延迟关单、库存释放和异步通知
-5. 监控、压测与并发策略对比
+5. Spring Security 与 JWT
+6. 监控、压测与并发策略对比
