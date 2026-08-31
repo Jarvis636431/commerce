@@ -2,9 +2,11 @@ package com.jarvis.commerce.common;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.jarvis.commerce.product.ProductStateException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -24,6 +26,21 @@ public class GlobalExceptionHandler {
                 .orElse("Request validation failed");
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
         detail.setTitle("Invalid request");
+        return detail;
+    }
+
+    @ExceptionHandler({ConflictException.class, ProductStateException.class})
+    ProblemDetail handleConflict(RuntimeException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        detail.setTitle("Business rule conflict");
+        return detail;
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail handleDataConflict(DataIntegrityViolationException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "The request conflicts with existing data");
+        detail.setTitle("Data conflict");
         return detail;
     }
 }
