@@ -13,6 +13,7 @@
 - 订单项成交快照和订单级库存预占记录
 - 支付单、幂等创建、模拟支付通知和重复通知去重
 - 支付超时扫描、自动取消订单和库存释放
+- 用户创建、查询、资料修改和启用/禁用
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -35,6 +36,7 @@
 ```text
 src/main/java/com/jarvis/commerce
 ├── common       通用异常、错误处理和分页响应
+├── user         用户资料和用户状态
 ├── product      Product、SKU 及其接口
 ├── inventory    库存及其业务操作
 ├── order        订单、订单项和库存预占记录
@@ -163,6 +165,17 @@ POST   /api/products/{id}/on-sale
 POST   /api/products/{id}/off-sale
 ```
 
+### User
+
+```http
+POST /api/users
+GET  /api/users/{id}
+GET  /api/users?page=0&size=20
+PUT  /api/users/{id}
+POST /api/users/{id}/disable
+POST /api/users/{id}/enable
+```
+
 ### SKU
 
 ```http
@@ -219,7 +232,7 @@ commerce:
 ## 后续路线
 
 1. 真实支付渠道、签名验证和支付查询补偿
-2. 用户与收货地址
+2. 收货地址与订单用户归属
 3. Redis 商品缓存与购物车
 4. MQ 延迟关单、库存释放和异步通知
 5. 监控、压测与并发策略对比
