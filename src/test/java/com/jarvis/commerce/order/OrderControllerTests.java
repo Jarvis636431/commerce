@@ -35,6 +35,7 @@ class OrderControllerTests {
     @Autowired private InventoryRepository inventoryRepository;
     @Autowired private CustomerOrderRepository orderRepository;
     @Autowired private InventoryReservationRepository reservationRepository;
+    @Autowired private OrderService orderService;
 
     private Long skuId;
 
@@ -70,9 +71,7 @@ class OrderControllerTests {
     void paysOrderAndConfirmsReservation() throws Exception {
         long orderId = createOrder(3);
 
-        mockMvc.perform(post("/api/orders/{id}/pay", orderId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAID"));
+        org.junit.jupiter.api.Assertions.assertEquals(OrderStatus.PAID, orderService.confirmPayment(orderId).status());
 
         Inventory inventory = inventoryRepository.findBySkuId(skuId).orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(7, inventory.getAvailableQuantity());
@@ -105,7 +104,7 @@ class OrderControllerTests {
         mockMvc.perform(post("/api/orders/{id}/complete", orderId))
                 .andExpect(status().isConflict());
 
-        mockMvc.perform(post("/api/orders/{id}/pay", orderId)).andExpect(status().isOk());
+        orderService.confirmPayment(orderId);
         mockMvc.perform(post("/api/orders/{id}/complete", orderId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"));

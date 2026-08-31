@@ -11,6 +11,7 @@
 - 库存初始化、入库、预占、确认和释放
 - 订单创建、查询、支付确认、取消和完成
 - 订单项成交快照和订单级库存预占记录
+- 支付单、幂等创建、模拟支付通知和重复通知去重
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -35,7 +36,8 @@ src/main/java/com/jarvis/commerce
 ├── common       通用异常、错误处理和分页响应
 ├── product      Product、SKU 及其接口
 ├── inventory    库存及其业务操作
-└── order        订单、订单项和库存预占记录
+├── order        订单、订单项和库存预占记录
+└── payment      支付单和支付通知处理
 
 src/main/resources
 ├── application.yaml
@@ -191,9 +193,22 @@ POST /api/orders/{id}/cancel
 POST /api/orders/{id}/complete
 ```
 
+订单不能再通过公开接口直接标记支付成功，必须由支付模块确认到账后推进。
+
+### Payment
+
+```http
+POST /api/payments                         Idempotency-Key 请求头必填
+GET  /api/payments/{paymentNo}
+POST /api/payments/{paymentNo}/mock-success
+POST /api/payments/{paymentNo}/mock-failure
+POST /api/payments/{paymentNo}/retry
+POST /api/payments/{paymentNo}/close
+```
+
 ## 后续路线
 
-1. 真实支付记录、回调和幂等
+1. 真实支付渠道、签名验证和支付查询补偿
 2. 用户与收货地址
 3. Redis 商品缓存与购物车
 4. MQ 延迟关单、库存释放和异步通知
