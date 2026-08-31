@@ -9,6 +9,8 @@
 - 商品创建、查询、分页、修改、删除和上下架
 - 商品 SKU 的创建、查询、修改和删除
 - 库存初始化、入库、预占、确认和释放
+- 订单创建、查询、支付确认、取消和完成
+- 订单项成交快照和订单级库存预占记录
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -32,7 +34,8 @@
 src/main/java/com/jarvis/commerce
 ├── common       通用异常、错误处理和分页响应
 ├── product      Product、SKU 及其接口
-└── inventory    库存及其业务操作
+├── inventory    库存及其业务操作
+└── order        订单、订单项和库存预占记录
 
 src/main/resources
 ├── application.yaml
@@ -177,12 +180,21 @@ POST /api/skus/{skuId}/inventory/confirm
 POST /api/skus/{skuId}/inventory/release
 ```
 
+### Order
+
+```http
+POST /api/orders
+GET  /api/orders/{id}
+GET  /api/orders?page=0&size=20
+POST /api/orders/{id}/pay
+POST /api/orders/{id}/cancel
+POST /api/orders/{id}/complete
+```
+
 ## 后续路线
 
-1. 订单和订单项
-2. 库存预占记录与幂等
-3. 用户与收货地址
-4. 支付状态流转
-5. Redis 商品缓存与购物车
-6. MQ 延迟关单、库存释放和异步通知
-7. 监控、压测与并发策略对比
+1. 真实支付记录、回调和幂等
+2. 用户与收货地址
+3. Redis 商品缓存与购物车
+4. MQ 延迟关单、库存释放和异步通知
+5. 监控、压测与并发策略对比
