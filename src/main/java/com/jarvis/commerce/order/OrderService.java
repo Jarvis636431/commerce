@@ -74,7 +74,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse pay(long id) {
+    public OrderResponse confirmPayment(long id) {
         CustomerOrder order = findOrder(id);
         order.markPaid();
         for (InventoryReservation reservation : reservations(id)) {

@@ -42,11 +42,6 @@ public class OrderController {
         return orderService.list(pageable);
     }
 
-    @PostMapping("/{id}/pay")
-    public OrderResponse pay(@PathVariable long id) {
-        return orderService.pay(id);
-    }
-
     @PostMapping("/{id}/cancel")
     public OrderResponse cancel(@PathVariable long id) {
         return orderService.cancel(id);
