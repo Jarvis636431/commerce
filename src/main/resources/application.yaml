@@ -10,6 +10,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       timeout: 2s
+      repositories:
+        enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -25,6 +27,8 @@ management:
         include: health,info
 
 commerce:
+  cart:
+    ttl: P30D
   payment:
     timeout: PT15M
     timeout-scan-interval: 60000

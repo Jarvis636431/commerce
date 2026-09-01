@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.jarvis.commerce.product.ProductStateException;
+import com.jarvis.commerce.cart.CartUnavailableException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -50,6 +51,13 @@ public class GlobalExceptionHandler {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, "The resource was changed concurrently; retry with fresh data");
         detail.setTitle("Concurrent update conflict");
+        return detail;
+    }
+
+    @ExceptionHandler(CartUnavailableException.class)
+    ProblemDetail handleCartUnavailable(CartUnavailableException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
+        detail.setTitle("Service temporarily unavailable");
         return detail;
     }
 }

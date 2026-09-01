@@ -15,6 +15,7 @@
 - 支付超时扫描、自动取消订单和库存释放
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
+- 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -27,6 +28,7 @@
 - Spring MVC
 - Spring Data JPA / Hibernate
 - PostgreSQL
+- Redis / Spring Data Redis
 - Flyway
 - H2（测试）
 - Maven Wrapper
@@ -38,6 +40,7 @@
 src/main/java/com/jarvis/commerce
 ├── common       通用异常、错误处理和分页响应
 ├── user         用户资料和用户状态
+├── cart         Redis 购物车及商品实时展示
 ├── product      Product、SKU 及其接口
 ├── inventory    库存及其业务操作
 ├── order        订单、订单项和库存预占记录
@@ -208,6 +211,16 @@ POST /api/skus/{skuId}/inventory/confirm
 POST /api/skus/{skuId}/inventory/release
 ```
 
+### Cart
+
+```http
+GET    /api/users/{userId}/cart
+POST   /api/users/{userId}/cart/items
+PUT    /api/users/{userId}/cart/items/{skuId}
+DELETE /api/users/{userId}/cart/items/{skuId}
+DELETE /api/users/{userId}/cart
+```
+
 ### Order
 
 ```http
@@ -244,7 +257,7 @@ commerce:
 ## 后续路线
 
 1. 真实支付渠道、签名验证和支付查询补偿
-2. Redis 购物车
+2. 从购物车结算并创建订单
 3. Redis 商品缓存
 4. MQ 延迟关单、库存释放和异步通知
 5. Spring Security 与 JWT
