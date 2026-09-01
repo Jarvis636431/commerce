@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 @Component
 @Profile("!test")
@@ -23,6 +24,18 @@ public class RedisCartStore implements CartStore {
             redis.call('HSET', KEYS[1], ARGV[1], next)
             redis.call('EXPIRE', KEYS[1], ARGV[4])
             return next
+            """, Long.class);
+
+    private static final DefaultRedisScript<Long> REMOVE_UNCHANGED_SCRIPT = new DefaultRedisScript<>("""
+            local removed = 0
+            for index = 1, #ARGV, 2 do
+                local current = redis.call('HGET', KEYS[1], ARGV[index])
+                if current == ARGV[index + 1] then
+                    redis.call('HDEL', KEYS[1], ARGV[index])
+                    removed = removed + 1
+                end
+            end
+            return removed
             """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -74,6 +87,21 @@ public class RedisCartStore implements CartStore {
     public void remove(long userId, long skuId) {
         try {
             redisTemplate.opsForHash().delete(key(userId), Long.toString(skuId));
+        } catch (RedisConnectionFailureException exception) {
+            throw new CartUnavailableException("Shopping cart is temporarily unavailable", exception);
+        }
+    }
+
+    @Override
+    public void removeUnchangedItems(long userId, Map<Long, Integer> expectedItems) {
+        if (expectedItems.isEmpty()) return;
+        List<String> arguments = new ArrayList<>(expectedItems.size() * 2);
+        expectedItems.forEach((skuId, quantity) -> {
+            arguments.add(Long.toString(skuId));
+            arguments.add(Integer.toString(quantity));
+        });
+        try {
+            redisTemplate.execute(REMOVE_UNCHANGED_SCRIPT, List.of(key(userId)), arguments.toArray());
         } catch (RedisConnectionFailureException exception) {
             throw new CartUnavailableException("Shopping cart is temporarily unavailable", exception);
         }

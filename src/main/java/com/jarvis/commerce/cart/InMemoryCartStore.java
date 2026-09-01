@@ -41,5 +41,15 @@ public class InMemoryCartStore implements CartStore {
     }
 
     @Override
+    public void removeUnchangedItems(long userId, Map<Long, Integer> expectedItems) {
+        Map<Long, Integer> cart = carts.get(userId);
+        if (cart == null) return;
+        synchronized (cart) {
+            expectedItems.forEach((skuId, quantity) -> cart.remove(skuId, quantity));
+            if (cart.isEmpty()) carts.remove(userId, cart);
+        }
+    }
+
+    @Override
     public void clear(long userId) { carts.remove(userId); }
 }

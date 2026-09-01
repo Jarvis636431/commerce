@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import com.jarvis.commerce.order.OrderResponse;
 
 @RestController
 @RequestMapping("/api/users/{userId}/cart")
@@ -43,4 +44,10 @@ public class CartController {
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void clear(@PathVariable long userId) { cartService.clear(userId); }
+
+    @PostMapping("/checkout")
+    public OrderResponse checkout(@PathVariable long userId,
+                                  @Valid @RequestBody CheckoutCartRequest request) {
+        return cartService.checkout(userId, request);
+    }
 }

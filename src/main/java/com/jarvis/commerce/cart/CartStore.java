@@ -7,5 +7,6 @@ public interface CartStore {
     int increment(long userId, long skuId, int quantity, int maximumQuantity);
     void put(long userId, long skuId, int quantity);
     void remove(long userId, long skuId);
+    void removeUnchangedItems(long userId, Map<Long, Integer> expectedItems);
     void clear(long userId);
 }

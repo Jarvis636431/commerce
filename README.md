@@ -16,6 +16,7 @@
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
+- 从购物车结算创建订单，提交后按快照安全移除购物车项
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -219,6 +220,7 @@ POST   /api/users/{userId}/cart/items
 PUT    /api/users/{userId}/cart/items/{skuId}
 DELETE /api/users/{userId}/cart/items/{skuId}
 DELETE /api/users/{userId}/cart
+POST   /api/users/{userId}/cart/checkout
 ```
 
 ### Order
@@ -257,8 +259,7 @@ commerce:
 ## 后续路线
 
 1. 真实支付渠道、签名验证和支付查询补偿
-2. 从购物车结算并创建订单
-3. Redis 商品缓存
-4. MQ 延迟关单、库存释放和异步通知
-5. Spring Security 与 JWT
-6. 监控、压测与并发策略对比
+2. Redis 商品缓存
+3. MQ 延迟关单、库存释放和异步通知
+4. Spring Security 与 JWT
+5. 监控、压测与并发策略对比

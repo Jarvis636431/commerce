@@ -4,6 +4,10 @@ import com.jarvis.commerce.common.ConflictException;
 import com.jarvis.commerce.common.ResourceNotFoundException;
 import com.jarvis.commerce.inventory.Inventory;
 import com.jarvis.commerce.inventory.InventoryRepository;
+import com.jarvis.commerce.order.CreateOrderItemRequest;
+import com.jarvis.commerce.order.CreateOrderRequest;
+import com.jarvis.commerce.order.OrderResponse;
+import com.jarvis.commerce.order.OrderService;
 import com.jarvis.commerce.product.ProductStatus;
 import com.jarvis.commerce.product.Sku;
 import com.jarvis.commerce.product.SkuRepository;
@@ -12,6 +16,10 @@ import com.jarvis.commerce.user.UserRepository;
 import com.jarvis.commerce.user.UserStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -24,19 +32,22 @@ import java.util.stream.Collectors;
 @Service
 public class CartService {
 
+    private static final Logger log = LoggerFactory.getLogger(CartService.class);
     private static final int MAXIMUM_QUANTITY = 99;
 
     private final CartStore cartStore;
     private final UserRepository userRepository;
     private final SkuRepository skuRepository;
     private final InventoryRepository inventoryRepository;
+    private final OrderService orderService;
 
     public CartService(CartStore cartStore, UserRepository userRepository, SkuRepository skuRepository,
-                       InventoryRepository inventoryRepository) {
+                       InventoryRepository inventoryRepository, OrderService orderService) {
         this.cartStore = cartStore;
         this.userRepository = userRepository;
         this.skuRepository = skuRepository;
         this.inventoryRepository = inventoryRepository;
+        this.orderService = orderService;
     }
 
     @Transactional(readOnly = true)
@@ -75,6 +86,31 @@ public class CartService {
     public void clear(long userId) {
         requireActiveUser(userId);
         cartStore.clear(userId);
+    }
+
+    @Transactional
+    public OrderResponse checkout(long userId, CheckoutCartRequest request) {
+        requireActiveUser(userId);
+        Map<Long, Integer> cartSnapshot = Map.copyOf(cartStore.getItems(userId));
+        if (cartSnapshot.isEmpty()) throw new ConflictException("Shopping cart is empty");
+
+        List<CreateOrderItemRequest> items = cartSnapshot.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new CreateOrderItemRequest(entry.getKey(), entry.getValue()))
+                .toList();
+        OrderResponse order = orderService.create(new CreateOrderRequest(userId, request.addressId(), items));
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    cartStore.removeUnchangedItems(userId, cartSnapshot);
+                } catch (RuntimeException exception) {
+                    log.warn("Order {} committed but checked-out cart items could not be removed", order.orderNo(), exception);
+                }
+            }
+        });
+        return order;
     }
 
     private CartResponse buildResponse(long userId, Map<Long, Integer> storedItems) {
