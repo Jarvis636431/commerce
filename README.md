@@ -2,7 +2,7 @@
 
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)。
+详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)。
 
 ## 当前能力
 
@@ -17,6 +17,7 @@
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
 - 从购物车结算创建订单，提交后按快照安全移除购物车项
+- 商品详情 Cache Aside、空值缓存和随机 TTL
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁

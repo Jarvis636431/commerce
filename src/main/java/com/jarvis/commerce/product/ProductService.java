@@ -7,16 +7,21 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class ProductService {
 
     private final ProductRepository productRepository;
     private final SkuRepository skuRepository;
+    private final ProductCacheStore productCacheStore;
 
-    public ProductService(ProductRepository productRepository, SkuRepository skuRepository) {
+    public ProductService(ProductRepository productRepository, SkuRepository skuRepository,
+                          ProductCacheStore productCacheStore) {
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
+        this.productCacheStore = productCacheStore;
     }
 
     @Transactional
@@ -27,7 +32,19 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductResponse getById(long id) {
-        return ProductResponse.from(findProduct(id));
+        ProductCacheLookup cached = productCacheStore.get(id);
+        if (cached.hit()) {
+            if (cached.value() == null) throw notFound(id);
+            return cached.value();
+        }
+        Product product = productRepository.findById(id).orElse(null);
+        if (product == null) {
+            productCacheStore.putNotFound(id);
+            throw notFound(id);
+        }
+        ProductResponse response = ProductResponse.from(product);
+        productCacheStore.put(response);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +58,7 @@ public class ProductService {
         Product product = findProduct(id);
         product.update(request.name().trim(), normalizeDescription(request.description()));
         productRepository.flush();
+        evictAfterCommit(id);
         return ProductResponse.from(product);
     }
 
@@ -52,6 +70,7 @@ public class ProductService {
         }
         product.putOnSale();
         productRepository.flush();
+        evictAfterCommit(id);
         return ProductResponse.from(product);
     }
 
@@ -60,6 +79,7 @@ public class ProductService {
         Product product = findProduct(id);
         product.takeOffSale();
         productRepository.flush();
+        evictAfterCommit(id);
         return ProductResponse.from(product);
     }
 
@@ -69,6 +89,7 @@ public class ProductService {
         product.ensureDeletable();
         skuRepository.deleteAllByProductId(id);
         productRepository.delete(product);
+        evictAfterCommit(id);
     }
 
     Product findProduct(long id) {
@@ -81,5 +102,16 @@ public class ProductService {
             return null;
         }
         return description.trim();
+    }
+
+    private ResourceNotFoundException notFound(long id) {
+        return new ResourceNotFoundException("Product %d was not found".formatted(id));
+    }
+
+    private void evictAfterCommit(long id) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() { productCacheStore.evict(id); }
+        });
     }
 }

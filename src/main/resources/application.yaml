@@ -29,6 +29,10 @@ management:
 commerce:
   cart:
     ttl: P30D
+  product-cache:
+    ttl: PT10M
+    not-found-ttl: PT30S
+    ttl-jitter: PT2M
   payment:
     timeout: PT15M
     timeout-scan-interval: 60000
