@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.jarvis.commerce.product.ProductStateException;
 import com.jarvis.commerce.cart.CartUnavailableException;
+import com.jarvis.commerce.auth.UnauthorizedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -58,6 +59,13 @@ public class GlobalExceptionHandler {
     ProblemDetail handleCartUnavailable(CartUnavailableException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
         detail.setTitle("Service temporarily unavailable");
+        return detail;
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    ProblemDetail handleUnauthorized(UnauthorizedException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, exception.getMessage());
+        detail.setTitle("Authentication failed");
         return detail;
     }
 }

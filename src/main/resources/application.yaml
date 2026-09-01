@@ -27,6 +27,12 @@ management:
         include: health,info
 
 commerce:
+  security:
+    issuer: commerce
+    access-token-ttl: PT15M
+    refresh-token-ttl: P30D
+    jwt-secret: ${AUTH_JWT_SECRET:change-this-development-secret-at-least-32-bytes}
+    permit-all: false
   cart:
     ttl: P30D
   product-cache:

@@ -37,6 +37,13 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserRole role;
+
     @Version
     @Column(nullable = false)
     private long version;
@@ -51,9 +58,15 @@ public class User {
     }
 
     public User(String username, String email, String phone) {
+        this(username, email, phone, null, UserRole.USER);
+    }
+
+    public User(String username, String email, String phone, String passwordHash, UserRole role) {
         this.username = username;
         this.email = email;
         this.phone = phone;
+        this.passwordHash = passwordHash;
+        this.role = role;
         this.status = UserStatus.ACTIVE;
     }
 
@@ -99,6 +112,8 @@ public class User {
     public String getEmail() { return email; }
     public String getPhone() { return phone; }
     public UserStatus getStatus() { return status; }
+    public String getPasswordHash() { return passwordHash; }
+    public UserRole getRole() { return role; }
     public long getVersion() { return version; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

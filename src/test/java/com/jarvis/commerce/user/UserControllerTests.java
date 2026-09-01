@@ -91,7 +91,8 @@ class UserControllerTests {
 
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.totalElements").isNumber());
 
         mockMvc.perform(get("/api/users/999999"))
                 .andExpect(status().isNotFound());

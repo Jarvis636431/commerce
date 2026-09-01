@@ -6,3 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+commerce:
+  security:
+    permit-all: true
+    jwt-secret: test-secret-that-is-longer-than-thirty-two-bytes
