@@ -18,6 +18,7 @@
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
 - 从购物车结算创建订单，提交后按快照安全移除购物车项
 - 商品详情 Cache Aside、空值缓存和随机 TTL
+- Spring Security、Access JWT、Refresh Token 轮换和 USER/ADMIN 授权
 - 参数校验与统一的 400、404、409 错误响应
 - Flyway 数据库版本管理
 - JPA 乐观锁
@@ -29,6 +30,7 @@
 - Spring Boot 4
 - Spring MVC
 - Spring Data JPA / Hibernate
+- Spring Security / OAuth2 Resource Server
 - PostgreSQL
 - Redis / Spring Data Redis
 - Flyway
@@ -159,6 +161,23 @@ curl http://localhost:8080/api/skus/1/inventory
 
 ## API 概览
 
+### Auth
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+POST /api/auth/logout-all       需要 Access Token
+GET  /api/me                    需要 Access Token
+```
+
+除公开商品查询和认证接口外，受保护接口需要请求头：
+
+```http
+Authorization: Bearer <access-token>
+```
+
 ### Product
 
 ```http
@@ -262,5 +281,5 @@ commerce:
 1. 真实支付渠道、签名验证和支付查询补偿
 2. Redis 商品缓存
 3. MQ 延迟关单、库存释放和异步通知
-4. Spring Security 与 JWT
+4. 将购物车、地址和订单迁移为 `/api/me/**`
 5. 监控、压测与并发策略对比
