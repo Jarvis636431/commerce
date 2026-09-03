@@ -3,6 +3,7 @@ package com.jarvis.commerce.messaging.outbox;
 import com.jarvis.commerce.payment.PaymentTimeoutMessage;
 import com.jarvis.commerce.refund.RefundRequestedMessage;
 import com.jarvis.commerce.search.ProductIndexMessage;
+import com.jarvis.commerce.storage.ObjectDeletionMessage;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -22,10 +23,13 @@ import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_COMMAND_EXCHAN
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_KEY;
 import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_COMMAND_EXCHANGE;
 import static com.jarvis.commerce.messaging.RabbitTopology.PRODUCT_INDEX_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.STORAGE_COMMAND_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.STORAGE_DELETE_KEY;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_DELETE;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_UPSERT;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.STORAGE_OBJECTS_DELETE;
 
 @Component
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
@@ -53,9 +57,20 @@ public class RabbitOutboxPublisher {
         } else if (PRODUCT_INDEX_UPSERT.equals(event.eventType())
                 || PRODUCT_INDEX_DELETE.equals(event.eventType())) {
             publishProductIndex(event);
+        } else if (STORAGE_OBJECTS_DELETE.equals(event.eventType())) {
+            publishObjectDeletion(event);
         } else {
             throw new IllegalArgumentException("Unsupported outbox event type: " + event.eventType());
         }
+    }
+
+    private void publishObjectDeletion(ClaimedOutboxEvent event) {
+        ObjectDeletionMessage payload = objectMapper.readValue(event.payload(), ObjectDeletionMessage.class);
+        publish(event, STORAGE_COMMAND_EXCHANGE, STORAGE_DELETE_KEY, payload, message -> {
+            message.getMessageProperties().setMessageId(event.eventId());
+            message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+            return message;
+        });
     }
 
     private void publishPaymentTimeout(ClaimedOutboxEvent event) {

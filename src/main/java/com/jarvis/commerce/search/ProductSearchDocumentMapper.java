@@ -10,11 +10,13 @@ import java.util.List;
 
 @Component
 public class ProductSearchDocumentMapper {
-    public ProductSearchDocument map(long productId, Product product, List<Sku> skus) {
+    public ProductSearchDocument map(long productId, Product product, List<Sku> skus, Long mainImageId) {
         BigDecimal minPrice = skus.stream().map(Sku::getPrice).min(Comparator.naturalOrder()).orElse(null);
         BigDecimal maxPrice = skus.stream().map(Sku::getPrice).max(Comparator.naturalOrder()).orElse(null);
         return new ProductSearchDocument(Long.toString(productId), product.getName(), product.getDescription(),
                 product.getStatus().name(), skus.stream().map(Sku::getName).toList(),
-                skus.stream().map(Sku::getCode).toList(), minPrice, maxPrice, product.getUpdatedAt());
+                skus.stream().map(Sku::getCode).toList(), minPrice, maxPrice,
+                mainImageId == null ? null : "/api/products/" + productId + "/images/" + mainImageId + "/content",
+                product.getUpdatedAt());
     }
 }

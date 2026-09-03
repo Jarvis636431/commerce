@@ -10,6 +10,8 @@ public record ProductImageResponse(
         String contentType,
         long size,
         String etag,
+        boolean primary,
+        int sortOrder,
         URL downloadUrl,
         OffsetDateTime downloadUrlExpiresAt,
         OffsetDateTime createdAt

@@ -4,6 +4,10 @@ import com.jarvis.commerce.common.BadRequestException;
 import com.jarvis.commerce.common.ResourceNotFoundException;
 import com.jarvis.commerce.storage.ObjectMetadata;
 import com.jarvis.commerce.storage.ObjectStorage;
+import com.jarvis.commerce.messaging.outbox.OutboxEventService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.unit.DataSize;
 import org.springframework.stereotype.Service;
@@ -27,21 +31,29 @@ public class ProductImageService {
     private final ProductRepository productRepository;
     private final ProductImageRepository imageRepository;
     private final ObjectStorage storage;
+    private final OutboxEventService outboxEventService;
+    private final ProductCacheStore productCacheStore;
     private final Duration uploadUrlTtl;
     private final Duration downloadUrlTtl;
     private final long maxImageSize;
+    private final Duration pendingTtl;
 
     public ProductImageService(ProductRepository productRepository, ProductImageRepository imageRepository,
                                ObjectStorage storage,
+                               OutboxEventService outboxEventService, ProductCacheStore productCacheStore,
                                @Value("${commerce.storage.upload-url-ttl:PT15M}") Duration uploadUrlTtl,
                                @Value("${commerce.storage.download-url-ttl:PT15M}") Duration downloadUrlTtl,
-                               @Value("${commerce.storage.max-image-size:10MB}") DataSize maxImageSize) {
+                               @Value("${commerce.storage.max-image-size:10MB}") DataSize maxImageSize,
+                               @Value("${commerce.storage.pending-ttl:PT1H}") Duration pendingTtl) {
         this.productRepository = productRepository;
         this.imageRepository = imageRepository;
         this.storage = storage;
+        this.outboxEventService = outboxEventService;
+        this.productCacheStore = productCacheStore;
         this.uploadUrlTtl = uploadUrlTtl;
         this.downloadUrlTtl = downloadUrlTtl;
         this.maxImageSize = maxImageSize.toBytes();
+        this.pendingTtl = pendingTtl;
     }
 
     public ProductImageUploadResponse createUpload(long productId, CreateProductImageUploadRequest request) {
@@ -72,21 +84,61 @@ public class ProductImageService {
 
     public List<ProductImageResponse> list(long productId) {
         requireProduct(productId);
-        return imageRepository.findByProductIdAndStatusOrderById(productId, ProductImageStatus.READY)
+        return imageRepository.findByProductIdAndStatusOrderByPrimaryImageDescSortOrderAscIdAsc(productId, ProductImageStatus.READY)
                 .stream().map(this::response).toList();
     }
 
+    @Transactional
+    public ProductImageResponse updateDisplay(long productId, long imageId, UpdateProductImageRequest request) {
+        productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + productId));
+        ProductImage target = requireImage(productId, imageId);
+        if (target.getStatus() != ProductImageStatus.READY) throw new BadRequestException("Only READY images can be displayed");
+        if (request.primary()) {
+            imageRepository.findAllByProductId(productId).forEach(image ->
+                    image.updateDisplay(image.getId().equals(imageId), image.getSortOrder()));
+        }
+        target.updateDisplay(request.primary(), request.sortOrder());
+        notifyProductChanged(productId);
+        return response(target);
+    }
+
+    @Transactional
     public void delete(long productId, long imageId) {
         ProductImage image = requireImage(productId, imageId);
-        storage.delete(image.getObjectKey());
+        outboxEventService.requestObjectDeletion("image:" + imageId, List.of(image.getObjectKey()));
         imageRepository.delete(image);
+        notifyProductChanged(productId);
+    }
+
+    public java.net.URL download(long productId, long imageId) {
+        ProductImage image = requireImage(productId, imageId);
+        if (image.getStatus() != ProductImageStatus.READY) throw new ResourceNotFoundException("Product image not found: " + imageId);
+        return storage.presignDownload(image.getObjectKey(), downloadUrlTtl);
+    }
+
+    @Scheduled(fixedDelayString = "${commerce.storage.cleanup-interval:PT10M}")
+    @Transactional
+    public void cleanupExpiredPending() {
+        var expired = imageRepository.findByStatusAndCreatedAtBeforeOrderById(ProductImageStatus.PENDING,
+                OffsetDateTime.now(ZoneOffset.UTC).minus(pendingTtl), PageRequest.of(0, 100));
+        expired.forEach(image -> {
+            outboxEventService.requestObjectDeletion("expired-image:" + image.getId(), List.of(image.getObjectKey()));
+            imageRepository.delete(image);
+        });
     }
 
     private ProductImageResponse response(ProductImage image) {
         OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plus(downloadUrlTtl);
         return new ProductImageResponse(image.getId(), image.getProductId(), image.getOriginalFilename(),
                 image.getContentType(), image.getActualSize(), image.getEtag(),
+                image.isPrimaryImage(), image.getSortOrder(),
                 storage.presignDownload(image.getObjectKey(), downloadUrlTtl), expiresAt, image.getCreatedAt());
+    }
+
+    private void notifyProductChanged(long productId) {
+        outboxEventService.requestProductIndex(productId);
+        productCacheStore.evict(productId);
     }
 
     private String normalizeAndValidate(String filename, String rawContentType, long size) {

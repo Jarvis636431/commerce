@@ -4,6 +4,7 @@ import com.jarvis.commerce.payment.PaymentTimeoutMessage;
 import com.jarvis.commerce.refund.RefundRequestedMessage;
 import com.jarvis.commerce.search.ProductIndexMessage;
 import com.jarvis.commerce.search.ProductIndexOperation;
+import com.jarvis.commerce.storage.ObjectDeletionMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIME
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_DELETE;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_UPSERT;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.STORAGE_OBJECTS_DELETE;
 
 @Service
 public class OutboxEventService {
@@ -79,6 +81,16 @@ public class OutboxEventService {
         ProductIndexMessage message = new ProductIndexMessage(eventId, productId, operation, now);
         repository.save(new OutboxEvent(eventId, "PRODUCT", Long.toString(productId),
                 eventType, objectMapper.writeValueAsString(message), now));
+    }
+
+    @Transactional
+    public void requestObjectDeletion(String aggregateId, List<String> objectKeys) {
+        if (objectKeys.isEmpty()) return;
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        String eventId = UUID.randomUUID().toString();
+        var message = new ObjectDeletionMessage(eventId, List.copyOf(objectKeys), now);
+        repository.save(new OutboxEvent(eventId, "STORAGE", aggregateId,
+                STORAGE_OBJECTS_DELETE, objectMapper.writeValueAsString(message), now));
     }
 
     @Transactional

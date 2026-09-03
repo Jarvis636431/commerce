@@ -5,6 +5,7 @@ public final class OutboxEventTypes {
     public static final String REFUND_REQUESTED = "refund.requested";
     public static final String PRODUCT_INDEX_UPSERT = "product.index.upsert";
     public static final String PRODUCT_INDEX_DELETE = "product.index.delete";
+    public static final String STORAGE_OBJECTS_DELETE = "storage.objects.delete";
 
     private OutboxEventTypes() {
     }

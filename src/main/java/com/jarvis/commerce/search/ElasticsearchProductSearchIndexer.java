@@ -4,6 +4,8 @@ import com.jarvis.commerce.product.Product;
 import com.jarvis.commerce.product.ProductRepository;
 import com.jarvis.commerce.product.Sku;
 import com.jarvis.commerce.product.SkuRepository;
+import com.jarvis.commerce.product.ProductImageRepository;
+import com.jarvis.commerce.product.ProductImageStatus;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,14 +22,16 @@ public class ElasticsearchProductSearchIndexer implements ProductSearchIndexer {
     private final SkuRepository skuRepository;
     private final ProductSearchRepository searchRepository;
     private final ProductSearchDocumentMapper mapper;
+    private final ProductImageRepository imageRepository;
 
     public ElasticsearchProductSearchIndexer(ProductRepository productRepository, SkuRepository skuRepository,
                                              ProductSearchRepository searchRepository,
-                                             ProductSearchDocumentMapper mapper) {
+                                             ProductSearchDocumentMapper mapper, ProductImageRepository imageRepository) {
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
         this.searchRepository = searchRepository;
         this.mapper = mapper;
+        this.imageRepository = imageRepository;
     }
 
     @Override
@@ -39,7 +43,7 @@ public class ElasticsearchProductSearchIndexer implements ProductSearchIndexer {
             return;
         }
         List<Sku> skus = skuRepository.findAllByProductIdOrderByIdAsc(productId);
-        searchRepository.save(mapper.map(productId, product, skus));
+        searchRepository.save(mapper.map(productId, product, skus, mainImageId(productId)));
     }
 
     @Override
@@ -58,11 +62,16 @@ public class ElasticsearchProductSearchIndexer implements ProductSearchIndexer {
             page = productRepository.findAll(PageRequest.of(number++, 200));
             for (Product product : page) {
                 List<Sku> skus = skuRepository.findAllByProductIdOrderByIdAsc(product.getId());
-                searchRepository.save(mapper.map(product.getId(), product, skus));
+                searchRepository.save(mapper.map(product.getId(), product, skus, mainImageId(product.getId())));
                 indexed++;
             }
         } while (page.hasNext());
         return indexed;
+    }
+
+    private Long mainImageId(long productId) {
+        return imageRepository.findFirstByProductIdAndStatusAndPrimaryImageTrue(productId, ProductImageStatus.READY)
+                .map(image -> image.getId()).orElse(null);
     }
 
 }

@@ -26,6 +26,10 @@ public class ProductImage {
     private String etag;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private ProductImageStatus status;
+    @Column(name = "is_primary", nullable = false)
+    private boolean primaryImage;
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
     @Version @Column(nullable = false)
     private long version;
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -42,12 +46,19 @@ public class ProductImage {
         this.contentType = contentType;
         this.declaredSize = declaredSize;
         this.status = ProductImageStatus.PENDING;
+        this.primaryImage = false;
+        this.sortOrder = 0;
     }
 
     void markReady(long actualSize, String etag) {
         this.actualSize = actualSize;
         this.etag = etag;
         this.status = ProductImageStatus.READY;
+    }
+
+    void updateDisplay(boolean primaryImage, int sortOrder) {
+        this.primaryImage = primaryImage;
+        this.sortOrder = sortOrder;
     }
 
     @PrePersist void onCreate() {
@@ -66,5 +77,7 @@ public class ProductImage {
     public Long getActualSize() { return actualSize; }
     public String getEtag() { return etag; }
     public ProductImageStatus getStatus() { return status; }
+    public boolean isPrimaryImage() { return primaryImage; }
+    public int getSortOrder() { return sortOrder; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
 }

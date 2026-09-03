@@ -102,6 +102,8 @@ commerce:
     upload-url-ttl: PT15M
     download-url-ttl: PT15M
     max-image-size: 10MB
+    pending-ttl: PT1H
+    cleanup-interval: PT10M
   payment:
     timeout: PT15M
     timeout-scan-interval: 60000

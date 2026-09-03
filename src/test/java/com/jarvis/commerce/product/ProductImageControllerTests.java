@@ -48,6 +48,21 @@ class ProductImageControllerTests {
                 .andExpect(jsonPath("$.size").value(1024))
                 .andExpect(jsonPath("$.downloadUrl").isString());
 
+        mockMvc.perform(put("/api/products/{productId}/images/{imageId}", product.getId(), imageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"primary":true,"sortOrder":1}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.primary").value(true))
+                .andExpect(jsonPath("$.sortOrder").value(1));
+
+        mockMvc.perform(get("/api/products/{id}", product.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mainImage.id").value(imageId))
+                .andExpect(jsonPath("$.mainImage.url").value(
+                        "/api/products/" + product.getId() + "/images/" + imageId + "/content"));
+
         mockMvc.perform(get("/api/products/{id}/images", product.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(imageId));

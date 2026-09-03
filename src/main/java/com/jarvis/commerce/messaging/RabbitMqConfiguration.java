@@ -172,4 +172,38 @@ public class RabbitMqConfiguration {
         return BindingBuilder.bind(searchDeadLetterQueue)
                 .to(searchDeadLetterExchange).with(SEARCH_DEAD_LETTER_KEY);
     }
+
+    @Bean
+    DirectExchange storageCommandExchange() {
+        return new DirectExchange(RabbitTopology.STORAGE_COMMAND_EXCHANGE, true, false);
+    }
+
+    @Bean
+    DirectExchange storageDeadLetterExchange() {
+        return new DirectExchange(RabbitTopology.STORAGE_DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    @Bean
+    Queue storageDeleteQueue() {
+        return QueueBuilder.durable(RabbitTopology.STORAGE_DELETE_QUEUE)
+                .deadLetterExchange(RabbitTopology.STORAGE_DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(RabbitTopology.STORAGE_DEAD_LETTER_KEY).build();
+    }
+
+    @Bean
+    Binding storageDeleteBinding(Queue storageDeleteQueue, DirectExchange storageCommandExchange) {
+        return BindingBuilder.bind(storageDeleteQueue).to(storageCommandExchange)
+                .with(RabbitTopology.STORAGE_DELETE_KEY);
+    }
+
+    @Bean
+    Queue storageDeadLetterQueue() {
+        return QueueBuilder.durable(RabbitTopology.STORAGE_DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding storageDeadLetterBinding(Queue storageDeadLetterQueue, DirectExchange storageDeadLetterExchange) {
+        return BindingBuilder.bind(storageDeadLetterQueue).to(storageDeadLetterExchange)
+                .with(RabbitTopology.STORAGE_DEAD_LETTER_KEY);
+    }
 }

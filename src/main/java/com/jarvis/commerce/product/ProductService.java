@@ -17,13 +17,16 @@ public class ProductService {
     private final SkuRepository skuRepository;
     private final ProductCacheStore productCacheStore;
     private final OutboxEventService outboxEventService;
+    private final ProductImageRepository imageRepository;
 
     public ProductService(ProductRepository productRepository, SkuRepository skuRepository,
-                          ProductCacheStore productCacheStore, OutboxEventService outboxEventService) {
+                          ProductCacheStore productCacheStore, OutboxEventService outboxEventService,
+                          ProductImageRepository imageRepository) {
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
         this.productCacheStore = productCacheStore;
         this.outboxEventService = outboxEventService;
+        this.imageRepository = imageRepository;
     }
 
     @Transactional
@@ -46,7 +49,10 @@ public class ProductService {
             productCacheStore.putNotFound(id);
             throw notFound(id);
         }
-        ProductResponse response = ProductResponse.from(product);
+        ProductMainImage mainImage = imageRepository
+                .findFirstByProductIdAndStatusAndPrimaryImageTrue(id, ProductImageStatus.READY)
+                .map(ProductMainImage::from).orElse(null);
+        ProductResponse response = ProductResponse.from(product, mainImage);
         productCacheStore.put(response);
         return response;
     }
@@ -94,6 +100,8 @@ public class ProductService {
     public void delete(long id) {
         Product product = findProduct(id);
         product.ensureDeletable();
+        var objectKeys = imageRepository.findAllByProductId(id).stream().map(ProductImage::getObjectKey).toList();
+        outboxEventService.requestObjectDeletion("product:" + id, objectKeys);
         skuRepository.deleteAllByProductId(id);
         productRepository.delete(product);
         evictAfterCommit(id);

@@ -28,6 +28,10 @@ MinIO 提供兼容 S3 的对象 API。应用通过 MinIO Java SDK 访问它，�
 
 只有 `READY` 图片会出现在查询结果中。对象 Key 由服务端生成，格式为 `products/{productId}/{UUID}.{extension}`，客户端不能指定路径，从源头避免路径穿越和对象覆盖。
 
+商品图片支持 `primary` 和 `sortOrder`。设置主图时会对 Product 加悲观锁，把同一商品的其他主图标记清除，从而保证并发请求串行修改。商品详情与 ES 搜索文档保存稳定的应用内 `/content` 地址；访问该地址时应用生成新的 MinIO 下载签名并返回 302，避免把会过期的签名 URL 放进 Redis 或 ES。
+
+未在一小时内完成确认的 `PENDING` 图片由定时任务扫描。图片记录删除和 `storage.objects.delete` Outbox 事件处于同一本地事务，RabbitMQ 消费者异步、幂等删除 MinIO 对象。删除单张图片或整个商品也复用同一条链路，失败消息最终进入 `commerce.storage.dead-letter`。
+
 ## 本地运行
 
 MinIO 9 使用 OkHttp 5。它的通用 `okhttp` artifact 只包含 Kotlin Multiplatform 元数据，Maven 不会像 Gradle 一样自动选择 JVM variant，因此项目显式声明了同版本的 `okhttp-jvm`。如果缺少它，编译时会看到“找不到 `okhttp3.HttpUrl`”错误。
@@ -75,6 +79,15 @@ curl -X POST http://localhost:8080/api/products/1/images/IMAGE_ID/complete \
 
 ```bash
 curl http://localhost:8080/api/products/1/images
+```
+
+设置主图和顺序：
+
+```bash
+curl -X PUT http://localhost:8080/api/products/1/images/IMAGE_ID \
+  -H 'Authorization: Bearer ADMIN_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"primary":true,"sortOrder":0}'
 ```
 
 ## 当前边界

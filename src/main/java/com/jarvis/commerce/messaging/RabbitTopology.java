@@ -28,6 +28,13 @@ public final class RabbitTopology {
     public static final String SEARCH_DEAD_LETTER_QUEUE = "commerce.search.dead-letter";
     public static final String SEARCH_DEAD_LETTER_KEY = "search.dead-letter";
 
+    public static final String STORAGE_COMMAND_EXCHANGE = "commerce.storage.command";
+    public static final String STORAGE_DELETE_QUEUE = "commerce.storage.delete";
+    public static final String STORAGE_DELETE_KEY = "storage.delete";
+    public static final String STORAGE_DEAD_LETTER_EXCHANGE = "commerce.storage.dlx";
+    public static final String STORAGE_DEAD_LETTER_QUEUE = "commerce.storage.dead-letter";
+    public static final String STORAGE_DEAD_LETTER_KEY = "storage.dead-letter";
+
     private RabbitTopology() {
     }
 }

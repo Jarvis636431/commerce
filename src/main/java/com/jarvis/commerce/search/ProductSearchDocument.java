@@ -37,6 +37,9 @@ public class ProductSearchDocument {
     @Field(type = FieldType.Double)
     private BigDecimal maxPrice;
 
+    @Field(type = FieldType.Keyword, index = false)
+    private String mainImageUrl;
+
     @Field(type = FieldType.Date)
     private OffsetDateTime updatedAt;
 
@@ -44,7 +47,7 @@ public class ProductSearchDocument {
 
     public ProductSearchDocument(String id, String name, String description, String status,
                                  List<String> skuNames, List<String> skuCodes,
-                                 BigDecimal minPrice, BigDecimal maxPrice, OffsetDateTime updatedAt) {
+                                 BigDecimal minPrice, BigDecimal maxPrice, String mainImageUrl, OffsetDateTime updatedAt) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -53,6 +56,7 @@ public class ProductSearchDocument {
         this.skuCodes = skuCodes;
         this.minPrice = minPrice;
         this.maxPrice = maxPrice;
+        this.mainImageUrl = mainImageUrl;
         this.updatedAt = updatedAt;
     }
 
@@ -64,5 +68,6 @@ public class ProductSearchDocument {
     public List<String> getSkuCodes() { return skuCodes; }
     public BigDecimal getMinPrice() { return minPrice; }
     public BigDecimal getMaxPrice() { return maxPrice; }
+    public String getMainImageUrl() { return mainImageUrl; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
 }

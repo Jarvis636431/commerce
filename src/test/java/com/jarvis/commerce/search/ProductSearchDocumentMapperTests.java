@@ -19,7 +19,7 @@ class ProductSearchDocumentMapperTests {
         Sku pro = new Sku(product, "PRO", "专业版", new BigDecimal("199.00"));
 
         ProductSearchDocument document = new ProductSearchDocumentMapper()
-                .map(10L, product, List.of(basic, pro));
+                .map(10L, product, List.of(basic, pro), 7L);
 
         assertEquals("10", document.getId());
         assertEquals(ProductStatus.ON_SALE.name(), document.getStatus());
@@ -27,5 +27,6 @@ class ProductSearchDocumentMapperTests {
         assertEquals(List.of("BASIC", "PRO"), document.getSkuCodes());
         assertEquals(new BigDecimal("99.00"), document.getMinPrice());
         assertEquals(new BigDecimal("199.00"), document.getMaxPrice());
+        assertEquals("/api/products/10/images/7/content", document.getMainImageUrl());
     }
 }
