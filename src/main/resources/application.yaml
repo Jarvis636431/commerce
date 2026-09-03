@@ -48,6 +48,14 @@ management:
 commerce:
   messaging:
     enabled: true
+    outbox:
+      poll-interval: 1000
+      batch-size: 50
+      lease: PT30S
+      confirm-timeout: PT5S
+      max-attempts: 10
+      retry-initial-interval: PT2S
+      retry-max-interval: PT5M
   security:
     issuer: commerce
     access-token-ttl: PT15M

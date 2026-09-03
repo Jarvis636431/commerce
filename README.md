@@ -14,6 +14,7 @@
 - 支付单、幂等创建、模拟支付通知和重复通知去重
 - 支付超时扫描、自动取消订单和库存释放
 - RabbitMQ 支付超时延迟消息、发布确认、有限重试、死信队列和定时扫描补偿
+- Transactional Outbox、本地事务事件、投递租约和指数退避重试
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
@@ -50,7 +51,9 @@ src/main/java/com/jarvis/commerce
 ├── product      Product、SKU 及其接口
 ├── inventory    库存及其业务操作
 ├── order        订单、订单项和库存预占记录
-└── payment      支付单和支付通知处理
+├── payment      支付单、支付通知和超时消息消费
+└── messaging
+    └── outbox   事务事件、抢占投递、RabbitMQ Confirm 和失败重试
 
 src/main/resources
 ├── application.yaml

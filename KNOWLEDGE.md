@@ -579,3 +579,23 @@ findByPaymentNoAndOrderUserId(paymentNo, currentUserId)
 查不到时统一返回 404，不向调用者透露该资源是否属于其他用户。这防止了水平越权（IDOR）：攻击者即使猜到递增 ID 或支付号，也不能读取、取消或重试别人的资源。
 
 管理员接口仍保留 `/api/users/{userId}/**`、`/api/orders/**` 和 `/api/payments/**`，并由 Spring Security 限制为 `ADMIN`。支付成功/失败模拟接口不暴露在 `/api/me/payments` 下，因为真实系统中支付状态应由经过签名验证的渠道回调推进，不能由普通用户自行声明成功。
+
+## 24. Transactional Outbox 与支付超时架构
+
+支付超时事件不再在事务 `afterCommit` 回调中直接发送。创建支付时，`payment_order` 和 `outbox_event` 在同一个 PostgreSQL 本地事务中保存，从而保证“业务数据存在”与“待发送事件存在”不会只成功一个。
+
+后台 `OutboxRelay` 分批抢占 `PENDING`、到期的 `RETRY`，以及租约过期的 `PROCESSING` 事件。抢占使用悲观锁，随后立即提交事务并释放数据库连接；RabbitMQ 网络调用发生在事务之外。投递端等待 Publisher Confirm，并检查消息是否因为无法路由而 Return。成功标记 `SENT`，失败记录原因并指数退避，超过最大次数进入 `FAILED`。
+
+```text
+payment_order + outbox_event（同一本地事务）
+→ Relay 抢占与租约
+→ RabbitMQ Confirm/Return
+→ SENT 或 RETRY/FAILED
+→ TTL + DLX
+→ 超时消费者
+→ 支付状态检查、关单、库存释放
+```
+
+Relay 在 RabbitMQ ACK 后、更新 `SENT` 前宕机会造成重复消息，因此该架构提供的是至少一次投递。消费者通过支付状态机实现幂等：支付已成功、已关闭或尚未到期时不会重复关单。数据库超时扫描仍作为最终补偿，用于应对 Outbox 长期 `FAILED`、RabbitMQ 长时间不可用等异常情况。
+
+详细字段、状态机、配置和失败窗口见 `RABBITMQ_KNOWLEDGE.md`。

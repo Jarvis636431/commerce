@@ -65,7 +65,7 @@ Exchange 和 Queue 解耦了发送方与消费方。订单模块只发布 `order
 - `mandatory=true`：要求不可路由消息触发 Return，而不是静默丢弃。
 - durable Exchange/Queue 与持久消息：降低 Broker 重启造成的丢失风险。
 
-当前配置已经开启 correlated confirm、publisher returns 和 mandatory。每条支付超时消息携带独立的 `CorrelationData`：异步回调记录 ACK/NACK，同时检查 ReturnedMessage，区分“Broker 拒绝”和“Exchange 无法路由”。当前只记录失败并依赖扫描补偿，后续 Outbox 会把失败投递变成可持久化重试的状态。
+当前配置已经开启 correlated confirm、publisher returns 和 mandatory。Outbox Relay 为每条消息创建独立的 `CorrelationData`，同步等待 ACK/NACK，同时检查 ReturnedMessage，区分“Broker 拒绝”和“Exchange 无法路由”。确认失败会持久化回 Outbox，按指数退避重新投递。
 
 ### 3.3 Broker 与 Consumer
 
@@ -149,7 +149,7 @@ RocketMQ 官方将普通、FIFO、延迟和事务消息作为不同消息类型�
 3. 创建支付后发送超时消息，并让消费者调用现有幂等状态检查。
 4. 保留数据库定时扫描作为补偿兜底。
 5. 增加发布确认、消费重试、死信告警和消费幂等表。
-6. 引入 Outbox，解决本地事务提交后消息未发送的问题。
+6. 观察并完善现有 Outbox 的告警、归档和人工重放。
 7. 最后用 RocketMQ 重做同一场景，对比原生延迟消息和事务消息。
 
 ## 8. 本项目的启动和观察命令
@@ -208,7 +208,7 @@ Outbox（事务发件箱）解决的是“业务数据库已经提交，但消�
 - 数据库成功、消息失败：支付单存在，但没有超时消息。
 - 消息成功、数据库回滚：MQ 中出现一个不存在的支付单，即“幽灵消息”。
 
-当前项目使用 `afterCommit`，先提交数据库，再发送消息，可以避免幽灵消息：
+项目最初使用 `afterCommit`，先提交数据库，再发送消息，可以避免幽灵消息：
 
 ```text
 提交 payment_order
@@ -216,7 +216,7 @@ Outbox（事务发件箱）解决的是“业务数据库已经提交，但消�
 → 发送 RabbitMQ 消息
 ```
 
-但它仍然有一个窗口：数据库提交后，应用可能在发送消息之前宕机。支付记录已经存在，消息却没有产生。当前保留的数据库超时扫描能够补偿业务结果，但不能从根本上证明每条领域事件都已成功投递。
+但它仍然有一个窗口：数据库提交后，应用可能在发送消息之前宕机。现在已经使用 Outbox 替代这条发送路径；数据库超时扫描继续作为业务级兜底。
 
 ### 9.1 Outbox 的工作方式
 
@@ -418,3 +418,79 @@ Outbox Publisher
 Outbox：解决业务数据与消息投递之间的一致性。
 Topic：解决 RocketMQ 中消息如何分类、分区和被消费组订阅。
 ```
+
+## 12. 当前项目的 Outbox 架构
+
+支付创建和支付失败后的重试都会调用 `OutboxEventService.schedulePaymentTimeout`。这个调用加入 `PaymentService` 已有的 `@Transactional` 事务，因此支付状态与事件记录具有相同的提交结果：
+
+```text
+PaymentService 数据库事务
+├── INSERT/UPDATE payment_order
+└── INSERT outbox_event(PENDING)
+          │
+          │ 事务提交后才对 Relay 可见
+          ▼
+OutboxRelay（默认每秒扫描）
+          │
+          ├── 悲观锁抢占最多 50 条
+          ├── 状态改为 PROCESSING
+          ├── attempts + 1
+          └── 设置 30 秒 lockedUntil 租约
+          ▼
+RabbitOutboxPublisher
+          │
+          ├── 反序列化稳定事件 JSON
+          ├── 根据 expiresAt 计算剩余 TTL
+          ├── 发布持久消息
+          └── 最多等待 Confirm 5 秒
+          ▼
+ACK 且可路由 ───────────────▶ SENT
+NACK / Return / 超时 / 异常 ─▶ RETRY
+                                  │
+                                  ├── 2s、4s、8s……指数退避
+                                  ├── 最大间隔 5 分钟
+                                  └── 第 10 次仍失败 → FAILED
+```
+
+Outbox 状态含义：
+
+| 状态 | 含义 |
+|---|---|
+| `PENDING` | 业务事务已记录，等待首次投递 |
+| `PROCESSING` | 某个 Relay 实例已经抢占，租约期间其他实例不处理 |
+| `RETRY` | 上次投递失败，等待 `nextAttemptAt` |
+| `SENT` | Broker 已 ACK，且消息没有被 Return |
+| `FAILED` | 超过最大尝试次数，需要告警和人工处理 |
+
+多实例通过悲观锁避免同时抢占同一事件。发布不能一直持有数据库事务，否则网络等待会长期占用连接和行锁，所以项目先在短事务里完成抢占并提交，再进行 RabbitMQ 网络调用。`PROCESSING` 的租约解决了抢占后进程宕机的问题：`lockedUntil` 到期后，其他实例会重新认领。
+
+### 12.1 为什么仍然是至少一次
+
+下面这个窗口无法只靠 Outbox 完全消除：
+
+```text
+RabbitMQ 已经 ACK
+→ Relay 在更新 SENT 前宕机
+→ PROCESSING 租约到期
+→ 同一 eventId 再次发送
+```
+
+因此 RabbitMQ 可能收到同一 `eventId` 多次。支付超时消费者每次都查询数据库，并通过支付状态机判断：只有 `PENDING` 且真正过期才能执行关单；后续重复消息得到 `expired=false` 后正常确认。这是“生产端至少一次 + 消费端幂等”组合。
+
+### 12.2 为什么发送时重新计算 TTL
+
+事件可能因为 RabbitMQ 故障在 Outbox 中等待了一段时间。如果每次都发送固定 15 分钟 TTL，实际关单时间会变成“业务超时时间 + Outbox 等待时间”。因此消息保存绝对的 `expiresAt`，Publisher 在每次投递时计算：
+
+```text
+remainingDelay = max(0, expiresAt - 当前时间)
+```
+
+再将它设置为消息 TTL。即使事件直到支付已经到期才成功发送，也会尽快进入超时消费队列。
+
+### 12.3 当前边界与后续优化
+
+- `FAILED` 事件目前只能通过数据库查看，后续应增加指标、告警和管理员重放接口。
+- `SENT` 历史数据需要按审计周期归档或清理。
+- 当前悲观锁方案兼容 H2 测试和 PostgreSQL；规模增大后可使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 提高多实例抢占吞吐。
+- 当前按事件逐条等待 Confirm，逻辑清晰但吞吐有限；后续可以批量异步 Confirm，同时维护 eventId 与结果的关联。
+- 生产者至少一次不替代消费者幂等，也不替代 RabbitMQ 和数据库监控。

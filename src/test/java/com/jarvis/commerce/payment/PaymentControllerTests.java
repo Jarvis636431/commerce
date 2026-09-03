@@ -2,6 +2,8 @@ package com.jarvis.commerce.payment;
 
 import com.jarvis.commerce.inventory.Inventory;
 import com.jarvis.commerce.inventory.InventoryRepository;
+import com.jarvis.commerce.messaging.outbox.OutboxEventRepository;
+import com.jarvis.commerce.messaging.outbox.OutboxEventTypes;
 import com.jarvis.commerce.order.CreateOrderItemRequest;
 import com.jarvis.commerce.order.CreateOrderRequest;
 import com.jarvis.commerce.order.CustomerOrderRepository;
@@ -51,6 +53,7 @@ class PaymentControllerTests {
     @Autowired private PaymentTimeoutService paymentTimeoutService;
     @Autowired private UserRepository userRepository;
     @Autowired private UserAddressRepository addressRepository;
+    @Autowired private OutboxEventRepository outboxRepository;
 
     private Long skuId;
     private Long orderId;
@@ -88,6 +91,9 @@ class PaymentControllerTests {
                 .andExpect(jsonPath("$.status").value("PENDING"));
 
         assertEquals(1, paymentRepository.count());
+        String paymentNo = paymentRepository.findByOrderId(orderId).orElseThrow().getPaymentNo();
+        assertEquals(1, outboxRepository.countByAggregateTypeAndAggregateIdAndEventType(
+                "PAYMENT", paymentNo, OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.jarvis.commerce.payment;
 
 import com.jarvis.commerce.common.ConflictException;
 import com.jarvis.commerce.common.ResourceNotFoundException;
+import com.jarvis.commerce.messaging.outbox.OutboxEventService;
 import com.jarvis.commerce.order.CustomerOrder;
 import com.jarvis.commerce.order.CustomerOrderRepository;
 import com.jarvis.commerce.order.OrderService;
@@ -24,21 +25,21 @@ public class PaymentService {
     private final OrderService orderService;
     private final Clock clock;
     private final Duration paymentTimeout;
-    private final PaymentTimeoutPublisher timeoutPublisher;
+    private final OutboxEventService outboxService;
 
     public PaymentService(PaymentOrderRepository paymentRepository,
                           PaymentNotificationRepository notificationRepository,
                           CustomerOrderRepository orderRepository,
                           OrderService orderService,
                           Clock clock,
-                          PaymentTimeoutPublisher timeoutPublisher,
+                          OutboxEventService outboxService,
                           @Value("${commerce.payment.timeout:PT15M}") Duration paymentTimeout) {
         this.paymentRepository = paymentRepository;
         this.notificationRepository = notificationRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.clock = clock;
-        this.timeoutPublisher = timeoutPublisher;
+        this.outboxService = outboxService;
         this.paymentTimeout = paymentTimeout;
     }
 
@@ -78,7 +79,7 @@ public class PaymentService {
         PaymentOrder payment = paymentRepository.save(new PaymentOrder(
                 generatePaymentNo(), order, idempotencyKey, order.getTotalAmount(),
                 OffsetDateTime.now(clock).plus(paymentTimeout)));
-        timeoutPublisher.publishAfterCommit(payment.getPaymentNo(), payment.getExpiresAt());
+        outboxService.schedulePaymentTimeout(payment.getPaymentNo(), payment.getExpiresAt());
         return PaymentResponse.from(payment);
     }
 
@@ -156,7 +157,7 @@ public class PaymentService {
             throw new ConflictException("Payment cannot be retried because the order is no longer pending");
         }
         payment.retry(OffsetDateTime.now(clock).plus(paymentTimeout));
-        timeoutPublisher.publishAfterCommit(payment.getPaymentNo(), payment.getExpiresAt());
+        outboxService.schedulePaymentTimeout(payment.getPaymentNo(), payment.getExpiresAt());
         paymentRepository.flush();
         return PaymentResponse.from(payment);
     }
