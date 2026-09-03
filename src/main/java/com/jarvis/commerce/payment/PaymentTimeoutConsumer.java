@@ -19,18 +19,26 @@ public class PaymentTimeoutConsumer {
 
     private final PaymentService paymentService;
     private final Clock clock;
+    private final PaymentTimeoutMetrics metrics;
 
-    public PaymentTimeoutConsumer(PaymentService paymentService, Clock clock) {
+    public PaymentTimeoutConsumer(PaymentService paymentService, Clock clock, PaymentTimeoutMetrics metrics) {
         this.paymentService = paymentService;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @RabbitListener(queues = PAYMENT_TIMEOUT_QUEUE)
     public void consume(PaymentTimeoutMessage payload) {
         log.info("Processing payment timeout message: paymentNo={}, eventId={}",
                 payload.paymentNo(), payload.eventId());
-        boolean expired = paymentService.expireIfDue(payload.paymentNo(), OffsetDateTime.now(clock));
-        log.info("Handled payment timeout message: paymentNo={}, eventId={}, expired={}",
-                payload.paymentNo(), payload.eventId(), expired);
+        try {
+            boolean expired = paymentService.expireIfDue(payload.paymentNo(), OffsetDateTime.now(clock));
+            if (expired) metrics.recordExpired(); else metrics.recordSkipped();
+            log.info("Handled payment timeout message: paymentNo={}, eventId={}, expired={}",
+                    payload.paymentNo(), payload.eventId(), expired);
+        } catch (RuntimeException exception) {
+            metrics.recordFailed();
+            throw exception;
+        }
     }
 }

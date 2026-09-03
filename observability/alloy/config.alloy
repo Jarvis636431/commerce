@@ -1,0 +1,38 @@
+local.file_match "commerce" {
+  path_targets = [{
+    "__path__"    = "/var/log/commerce/*.log",
+    "application" = "commerce",
+    "environment" = "local",
+    "job"         = "commerce",
+  }]
+}
+
+loki.source.file "commerce" {
+  targets    = local.file_match.commerce.targets
+  forward_to = [loki.process.commerce.receiver]
+}
+
+loki.process "commerce" {
+  stage.regex {
+    expression = "^(?P<timestamp>\\S+) level=(?P<level>\\S+) traceId=(?P<trace_id>\\S+)"
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339Nano"
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

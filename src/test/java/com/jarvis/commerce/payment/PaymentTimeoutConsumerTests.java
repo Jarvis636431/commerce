@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,7 +34,8 @@ class PaymentTimeoutConsumerTests {
     }
 
     private PaymentTimeoutConsumer consumer(PaymentService paymentService) {
-        return new PaymentTimeoutConsumer(paymentService, Clock.fixed(NOW, ZoneOffset.UTC));
+        return new PaymentTimeoutConsumer(paymentService, Clock.fixed(NOW, ZoneOffset.UTC),
+                new PaymentTimeoutMetrics(new SimpleMeterRegistry()));
     }
 
     private PaymentTimeoutMessage message() {

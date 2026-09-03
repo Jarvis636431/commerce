@@ -16,6 +16,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
 
     Optional<OutboxEvent> findByEventId(String eventId);
 
+    long countByStatus(OutboxStatus status);
+
     long countByAggregateTypeAndAggregateIdAndEventType(String aggregateType, String aggregateId, String eventType);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

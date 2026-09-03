@@ -19,14 +19,17 @@ public class OutboxRelay {
     private final RabbitOutboxPublisher publisher;
     private final int batchSize;
     private final Duration lease;
+    private final OutboxMetrics metrics;
 
     public OutboxRelay(OutboxEventService outboxService, RabbitOutboxPublisher publisher,
                        @Value("${commerce.messaging.outbox.batch-size:50}") int batchSize,
-                       @Value("${commerce.messaging.outbox.lease:PT30S}") Duration lease) {
+                       @Value("${commerce.messaging.outbox.lease:PT30S}") Duration lease,
+                       OutboxMetrics metrics) {
         this.outboxService = outboxService;
         this.publisher = publisher;
         this.batchSize = batchSize;
         this.lease = lease;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${commerce.messaging.outbox.poll-interval:1000}")
@@ -35,10 +38,12 @@ public class OutboxRelay {
             try {
                 publisher.publishAndWaitForConfirm(event);
                 outboxService.markSent(event.eventId());
+                metrics.recordSuccess();
                 log.info("Outbox event delivered: eventId={}, eventType={}, attempt={}",
                         event.eventId(), event.eventType(), event.attempt());
             } catch (RuntimeException exception) {
                 outboxService.markDeliveryFailed(event.eventId(), exception);
+                metrics.recordFailure();
                 log.error("Outbox event delivery failed: eventId={}, eventType={}, attempt={}",
                         event.eventId(), event.eventType(), event.attempt(), exception);
             }
