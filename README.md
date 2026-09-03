@@ -1,8 +1,22 @@
 # Commerce
 
+[![CI](https://github.com/Jarvis636431/commerce/actions/workflows/ci.yml/badge.svg)](https://github.com/Jarvis636431/commerce/actions/workflows/ci.yml)
+
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-项目后续路线见 [ROADMAP.md](ROADMAP.md)。详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，搜索专题见 [ELASTICSEARCH.md](ELASTICSEARCH.md)，对象存储见 [MINIO.md](MINIO.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)，监控与日志见 [OBSERVABILITY.md](OBSERVABILITY.md)。
+## 文档导航
+
+| 文档 | 内容 |
+| --- | --- |
+| [ROADMAP.md](ROADMAP.md) | 已完成能力、下一阶段和工程化验收标准 |
+| [KNOWLEDGE.md](KNOWLEDGE.md) | 项目架构与核心 Java 后端知识 |
+| [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md) | 缓存、购物车、热 Key 与大 Key |
+| [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md) | RabbitMQ、可靠投递、Outbox 与 DLQ |
+| [MQ_INTERVIEW.md](MQ_INTERVIEW.md) | MQ 高频面试知识 |
+| [ELASTICSEARCH.md](ELASTICSEARCH.md) | 商品索引、搜索和最终一致性 |
+| [MINIO.md](MINIO.md) | S3 对象存储与商品图片 |
+| [OBSERVABILITY.md](OBSERVABILITY.md) | Prometheus、Loki、Alloy、Grafana 与告警 |
+| [CI_CD.md](CI_CD.md) | GitHub Actions、Docker 与 GHCR 镜像交付 |
 
 ## 当前能力
 
@@ -49,6 +63,7 @@
 - H2（测试）
 - Maven Wrapper
 - Docker Compose
+- GitHub Actions / GitHub Container Registry
 
 ## 项目结构
 
@@ -84,7 +99,7 @@ Controller → Service → Repository → JPA/Hibernate → Database
 - Docker Desktop 或兼容的 Docker 环境
 - Make（可选，命令也可以直接执行）
 
-启动 PostgreSQL、Redis 和 RabbitMQ：
+启动全部本地基础设施：
 
 ```bash
 make infra-up
@@ -96,10 +111,10 @@ make infra-up
 make db-status
 ```
 
-启动应用：
+启动应用。快速体验阶段可以临时放开鉴权；该配置不能用于生产：
 
 ```bash
-make run
+COMMERCE_SECURITY_PERMIT_ALL=true make run
 ```
 
 应用默认地址为 `http://localhost:8080`，健康检查：
@@ -133,6 +148,16 @@ make test
 ```bash
 ./mvnw test
 ```
+
+## 容器与 CI/CD
+
+本地构建应用镜像：
+
+```bash
+docker build -t commerce:local .
+```
+
+Pull Request 和 main 分支 Push 会运行 Maven 测试与容器构建验证；main 和 `v*` 标签会把带 Commit SHA 的镜像发布到 GHCR。具体边界、标签和 Secret 说明见 [CI_CD.md](CI_CD.md)。
 
 ## 快速体验
 

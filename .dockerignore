@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.vscode
+target
+logs
+*.iml
+*.log
+README.md
+ROADMAP.md
+KNOWLEDGE.md
+*_KNOWLEDGE.md
+MQ_INTERVIEW.md
+OBSERVABILITY.md
+ELASTICSEARCH.md
+MINIO.md
