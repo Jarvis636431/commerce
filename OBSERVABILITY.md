@@ -10,6 +10,119 @@ Commerce ── logs/commerce.log → Alloy → Loki ──┘
 
 Prometheus 采用拉模型：它每 15 秒访问应用的指标端点并保存时间序列。Alloy 持续读取滚动日志文件，为日志附加 `application`、`environment` 和 `level` 标签后推送到 Loki。Grafana 本身不存储数据，只查询 Prometheus 和 Loki 并展示结果。
 
+## 这是不是 Java 生态
+
+这套系统不是 Java 专属方案，而是语言无关的可观测性基础设施。Java 应用只是数据生产者之一：
+
+| 组件 | 所属范围 | 主要职责 |
+| --- | --- | --- |
+| Spring Boot Actuator | Spring/Java 生态 | 暴露健康状态和应用指标端点 |
+| Micrometer | JVM 生态 | 用统一 API 记录 Counter、Gauge、Timer 等指标 |
+| SLF4J、Logback | Java 生态 | 生成并输出应用日志 |
+| Prometheus | 通用基础设施 | 抓取、保存和查询数值型时间序列 |
+| Alloy | 通用基础设施 | 在数据源附近采集、处理和转发可观测性数据 |
+| Loki | 通用基础设施 | 集中保存和查询日志 |
+| Grafana | 通用基础设施 | 查询数据源并制作仪表盘和告警 |
+
+可以用六句话记住它们：
+
+```text
+Actuator：把 Spring Boot 的运行信息暴露出来
+Micrometer：用统一方式产生指标
+Prometheus：存指标
+Alloy：搬运数据
+Loki：存日志
+Grafana：展示数据
+```
+
+## 为什么拆成多个服务
+
+拆分依据不是技术名称，而是数据模型、处理阶段和负载特征。
+
+### 指标和日志的数据模型不同
+
+指标是带时间和标签的数字，例如请求总数、P95 延迟、内存使用量。它的数据量规律，主要用于数学计算、聚合和趋势分析。Prometheus 因此使用时间序列模型并提供 PromQL。
+
+日志是一条条大小不一的文本事件，例如异常堆栈、订单号和失败原因。它的数据量更大，主要用于过滤、搜索和还原具体现场。Loki 因此采用日志流模型并提供 LogQL。
+
+```text
+指标回答：系统是否出问题、影响多大、趋势如何？
+日志回答：某一次请求具体为什么失败？
+```
+
+如果强行交给一个存储引擎处理，内部仍要实现两套不同的数据结构和查询方式。
+
+### 采集端和存储端的位置不同
+
+Alloy 要部署在日志产生的位置附近，因为只有它容易访问本机文件、容器输出和系统日志。它负责记录文件读取位置、解析字段、添加标签、缓冲和失败重试。
+
+Loki 位于中心位置，负责接收多台机器的日志、存储、索引和查询：
+
+```text
+服务器 A：应用 → Alloy ─┐
+服务器 B：应用 → Alloy ─┼→ Loki
+服务器 C：应用 → Alloy ─┘
+```
+
+让中心 Loki 直接读取所有机器的本地文件，会带来文件不可访问、容器地址变化、断网状态难维护等问题，因此“靠近数据源的 Agent + 中心存储”是更自然的边界。
+
+### 展示层需要组合多个数据源
+
+Grafana 的职责是 Dashboard、图表、查询交互、告警和权限。它可以同时查询 Prometheus、Loki、Tempo、PostgreSQL 等数据源，而不需要自己重新实现所有存储引擎。
+
+这种拆分还带来三个工程收益：
+
+- 指标、日志和展示可以分别扩容。例如日志每天 500 GB，而指标只有 5 GB，只扩容 Loki 即可。
+- 日志洪峰拖慢 Loki 时，Prometheus 的指标采集仍可继续，形成故障隔离。
+- 每层可以独立替换，例如用 VictoriaMetrics 替换 Prometheus，Grafana 和应用埋点不必一起重写。
+
+商业平台看起来可能只有一个网站和一个 Agent，但它们内部通常仍包含指标、日志、Trace、查询、告警和存储等多个服务。它们是一体化的产品体验，并不意味着内部只有一个程序。
+
+## 两条完整数据链路
+
+### 指标链路
+
+```text
+业务代码 / Spring Boot
+→ Micrometer 记录指标
+→ Actuator 暴露 /actuator/prometheus
+← Prometheus 每 15 秒拉取并保存
+← Grafana 使用 PromQL 查询并画图
+```
+
+Prometheus 使用 Pull 拉取模型。应用只负责公开当前指标，不需要知道 Prometheus 部署在哪里。如果 Prometheus 短暂离线，业务请求仍可继续运行。
+
+### 日志链路
+
+```text
+业务代码
+→ SLF4J API
+→ Logback 写入 logs/commerce.log
+→ Alloy 读取新增内容并添加低基数标签
+→ Loki 保存日志流
+← Grafana 使用 LogQL 查询并展示
+```
+
+当前 Alloy 只读取新增内容，不需要每次重新发送整个文件。应用进行日志滚动后，它会继续追踪相应文件。
+
+## 从异常到根因的排查链路
+
+假设用户反馈创建订单失败：
+
+1. 在 Grafana 指标面板查看错误率、请求速率和 P95 延迟，确认异常发生的时间和接口。
+2. 查看 JVM、数据库连接池、Outbox 积压等指标，判断是资源问题还是异步链路问题。
+3. 从 HTTP 响应取得 `X-Trace-Id`。
+4. 在 Grafana Explore 查询 Loki：`{application="commerce"} |= "traceId=..."`。
+5. 根据同一次请求的异常、业务参数和调用过程定位根因。
+
+因此常见排障顺序是：
+
+```text
+指标发现异常 → Trace ID 缩小范围 → 日志解释原因 → 数据库/MQ 验证业务状态
+```
+
+当前 Trace ID 只能关联这个单体应用内部的日志。如果以后拆成微服务，还需要 OpenTelemetry 或 Micrometer Tracing 将上下文跨 HTTP、RabbitMQ 传播，并使用 Tempo、Jaeger、SkyWalking 等系统保存完整调用链。
+
 ## 启动
 
 先启动完整基础设施，再启动本机上的 Spring Boot 应用：
@@ -68,6 +181,24 @@ histogram_quantile(0.95,
 
 commerce_outbox_events{application="commerce", status="FAILED"}
 ```
+
+PromQL 类似指标领域的 SQL，但查询对象不是业务记录，而是随时间变化的数值。常用结构包括：
+
+```promql
+# 标签过滤
+metric_name{label="value"}
+
+# Counter 最近五分钟的每秒增长速度
+rate(metric_name[5m])
+
+# Counter 最近一小时总增长量
+increase(metric_name[1h])
+
+# 按标签汇总
+sum by (status) (rate(metric_name[5m]))
+```
+
+SQL 适合回答“哪些支付单失败了”，PromQL 适合回答“最近五分钟支付失败速度是否升高”。PromQL 用来发现趋势，日志用来解释现场，SQL 用来核查具体业务数据。
 
 LogQL：
 
