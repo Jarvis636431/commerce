@@ -93,6 +93,15 @@ commerce:
     ttl-jitter: PT2M
   search:
     enabled: true
+  storage:
+    enabled: true
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:commerce}
+    secret-key: ${MINIO_SECRET_KEY:commerce-minio-secret}
+    bucket: ${MINIO_BUCKET:commerce-product-images}
+    upload-url-ttl: PT15M
+    download-url-ttl: PT15M
+    max-image-size: 10MB
   payment:
     timeout: PT15M
     timeout-scan-interval: 60000

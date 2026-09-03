@@ -61,6 +61,23 @@ services:
       timeout: 5s
       retries: 20
 
+  minio:
+    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: commerce
+      MINIO_ROOT_PASSWORD: commerce-minio-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - commerce-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   prometheus:
     image: prom/prometheus:v3.5.0
     command:
@@ -135,6 +152,7 @@ volumes:
   commerce-redis-data:
   commerce-rabbitmq-data:
   commerce-elasticsearch-data:
+  commerce-minio-data:
   commerce-prometheus-data:
   commerce-alertmanager-data:
   commerce-loki-data:

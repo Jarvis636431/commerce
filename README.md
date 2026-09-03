@@ -2,7 +2,7 @@
 
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-项目后续路线见 [ROADMAP.md](ROADMAP.md)。详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，搜索专题见 [ELASTICSEARCH.md](ELASTICSEARCH.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)，监控与日志见 [OBSERVABILITY.md](OBSERVABILITY.md)。
+项目后续路线见 [ROADMAP.md](ROADMAP.md)。详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，搜索专题见 [ELASTICSEARCH.md](ELASTICSEARCH.md)，对象存储见 [MINIO.md](MINIO.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)，监控与日志见 [OBSERVABILITY.md](OBSERVABILITY.md)。
 
 ## 当前能力
 
@@ -19,6 +19,7 @@
 - Prometheus 告警规则、Alertmanager 分组路由和 Grafana 告警数据源
 - 整单/部分退款、累计额度控制、Outbox 异步提交、渠道回调去重和订单退款状态机
 - Elasticsearch 商品全文搜索、价格筛选/排序/高亮、Outbox 增量同步和索引全量重建
+- MinIO 商品图片元数据、预签名直传/下载和上传确认
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
@@ -43,6 +44,7 @@
 - Prometheus / Loki / Grafana Alloy / Grafana
 - Alertmanager
 - Elasticsearch / Spring Data Elasticsearch
+- MinIO / S3 Java SDK
 - Flyway
 - H2（测试）
 - Maven Wrapper
@@ -59,6 +61,7 @@ src/main/java/com/jarvis/commerce
 ├── inventory    库存及其业务操作
 ├── order        订单、订单项和库存预占记录
 ├── payment      支付单、支付通知和超时消息消费
+├── storage      MinIO/S3 对象操作抽象
 └── messaging
     └── outbox   事务事件、抢占投递、RabbitMQ Confirm 和失败重试
 
