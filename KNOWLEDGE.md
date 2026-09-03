@@ -611,3 +611,29 @@ Counter 只递增，适合累计成功/失败次数，查询时通常使用 `rat
 标签能切分指标和日志，但不能无限添加。状态、结果、日志级别属于低基数标签；traceId、用户 ID、订单号属于高基数值，只应放在日志正文，而不应成为标签。否则时间序列和日志流数量会快速膨胀，显著增加内存、索引和查询成本。
 
 当前链路和运行方式详见 `OBSERVABILITY.md`。它是单机学习环境，生产中还要加入告警规则、集中式 Secret、鉴权、长期存储和完整的 OpenTelemetry/Tempo 分布式追踪。
+
+## 26. 告警闭环
+
+Prometheus 不只存储指标，还按 `evaluation_interval` 周期执行告警规则。表达式满足条件后先进入 Pending，持续达到 `for` 后才进入 Firing。恢复正常后进入 Resolved。`for` 可以过滤短暂毛刺，但设置太长也会推迟真正故障的发现。
+
+Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、抑制和路由。例如同一服务的数十条实例告警可以合成一条通知；当 critical 根因告警出现时，可以抑制由它引发的 warning 告警。Grafana 负责统一查看这些状态，而真实通知渠道属于 Alertmanager 路由配置。
+
+告警应尽量描述用户或业务影响，而不是“CPU 一高就报警”。当前项目首先监控可用性、5xx、P95、Outbox 永久失败和退款积压。这些信号比孤立的资源波动更接近真实故障。
+
+## 27. 整单退款模型
+
+第一版退款限定为“一笔成功支付最多创建一个整单退款”。创建退款单要求支付状态为 `SUCCESS`，退款金额直接取支付金额，不能相信客户端提交的金额。退款请求使用 `Idempotency-Key`，相同 Key 和相同订单返回原退款单，避免客户端重试造成重复退款。
+
+```text
+订单 PAID / COMPLETED
+→ 创建 RefundOrder(PENDING)
+→ 订单 REFUNDING
+→ 渠道成功回调：RefundOrder SUCCESS → 订单 REFUNDED
+→ 渠道失败回调：RefundOrder FAILED → 订单恢复 PAID / COMPLETED
+```
+
+退款单保存 `orderStatusBeforeRefund`，因为失败时必须知道订单原来是已支付还是已完成。渠道通知使用全局唯一 `notificationId` 去重，同一通知重复到达只返回当前结果；通知 ID 被其他退款占用则产生冲突。实体使用 `@Version` 防止两个不同回调同时推进同一退款单。
+
+用户接口为 `/api/me/refunds`，用户 ID 取自验签后的 Access Token，并通过关联的支付单和订单检查所有权。管理接口 `/api/refunds` 受 ADMIN 权限保护；`mock-success` 和 `mock-failure` 仅用于模拟真实支付渠道的异步退款回调。
+
+目前未实现部分退款、自动渠道请求、失败重试和退款 Outbox。部分退款需要把“一笔支付一个退款”的唯一约束改为一对多，并在并发下保证 `成功金额 + 处理中金额 + 新申请金额 <= 实付金额`，适合作为下一轮演进。

@@ -53,9 +53,23 @@ services:
       - "9090:9090"
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - commerce-prometheus-data:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - commerce-alertmanager-data:/alertmanager
 
   loki:
     image: grafana/loki:3.7.0
@@ -97,12 +111,14 @@ services:
     depends_on:
       - prometheus
       - loki
+      - alertmanager
 
 volumes:
   commerce-postgres-data:
   commerce-redis-data:
   commerce-rabbitmq-data:
   commerce-prometheus-data:
+  commerce-alertmanager-data:
   commerce-loki-data:
   commerce-alloy-data:
   commerce-grafana-data:

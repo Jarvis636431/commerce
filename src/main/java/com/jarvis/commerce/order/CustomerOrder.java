@@ -103,6 +103,28 @@ public class CustomerOrder {
         status = OrderStatus.COMPLETED;
     }
 
+    public OrderStatus beginRefund() {
+        if (status != OrderStatus.PAID && status != OrderStatus.COMPLETED) {
+            throw new ConflictException("Only paid or completed orders can be refunded");
+        }
+        OrderStatus previousStatus = status;
+        status = OrderStatus.REFUNDING;
+        return previousStatus;
+    }
+
+    public void markRefunded() {
+        requireStatus(OrderStatus.REFUNDING, "Only refunding orders can be marked refunded");
+        status = OrderStatus.REFUNDED;
+    }
+
+    public void restoreAfterRefundFailure(OrderStatus previousStatus) {
+        requireStatus(OrderStatus.REFUNDING, "Only refunding orders can restore their status");
+        if (previousStatus != OrderStatus.PAID && previousStatus != OrderStatus.COMPLETED) {
+            throw new IllegalArgumentException("Invalid status before refund: " + previousStatus);
+        }
+        status = previousStatus;
+    }
+
     private void requireStatus(OrderStatus expected, String message) {
         if (status != expected) {
             throw new ConflictException(message);

@@ -50,20 +50,20 @@ rabbit-logs:
 
 observe-up:
 	mkdir -p logs
-	docker compose up -d prometheus loki alloy grafana
+	docker compose up -d prometheus alertmanager loki alloy grafana
 
 observe-down:
-	docker compose stop prometheus loki alloy grafana
+	docker compose stop prometheus alertmanager loki alloy grafana
 
 observe-status:
-	docker compose ps prometheus loki alloy grafana
+	docker compose ps prometheus alertmanager loki alloy grafana
 
 observe-logs:
-	docker compose logs -f prometheus loki alloy grafana
+	docker compose logs -f prometheus alertmanager loki alloy grafana
 
 infra-up:
 	mkdir -p logs
-	docker compose up -d postgres redis rabbitmq prometheus loki alloy grafana
+	docker compose up -d postgres redis rabbitmq prometheus alertmanager loki alloy grafana
 
 infra-down:
-	docker compose stop postgres redis rabbitmq prometheus loki alloy grafana
+	docker compose stop postgres redis rabbitmq prometheus alertmanager loki alloy grafana

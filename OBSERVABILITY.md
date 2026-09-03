@@ -10,6 +10,16 @@ Commerce ── logs/commerce.log → Alloy → Loki ──┘
 
 Prometheus 采用拉模型：它每 15 秒访问应用的指标端点并保存时间序列。Alloy 持续读取滚动日志文件，为日志附加 `application`、`environment` 和 `level` 标签后推送到 Loki。Grafana 本身不存储数据，只查询 Prometheus 和 Loki 并展示结果。
 
+告警链路是在指标链路上继续延伸：
+
+```text
+Prometheus 定期计算告警规则
+→ 满足阈值并持续达到 for 时间
+→ Alertmanager 接收告警
+→ 分组、抑制、静默和路由
+→ Grafana 统一查看（生产中再连接邮件、Webhook、飞书等通知渠道）
+```
+
 ## 这是不是 Java 生态
 
 这套系统不是 Java 专属方案，而是语言无关的可观测性基础设施。Java 应用只是数据生产者之一：
@@ -144,11 +154,32 @@ make observe-logs
 
 - Grafana：`http://localhost:3000`，开发账号密码为 `admin/admin`
 - Prometheus：`http://localhost:9090`
+- Prometheus 告警规则：`http://localhost:9090/alerts`
+- Alertmanager：`http://localhost:9093`
 - Loki 健康检查：`http://localhost:3100/ready`
 - Alloy 调试界面：`http://localhost:12345`
 - 应用原始指标：`http://localhost:8080/actuator/prometheus`
 
 Grafana 会自动配置 Prometheus、Loki 两个数据源，并加载 `Commerce Overview` 仪表盘，无需手工导入。
+
+## 告警规则
+
+告警规则保存在 `observability/prometheus/rules/commerce-alerts.yml`，当前包括：
+
+| 告警 | 条件 | 级别 |
+| --- | --- | --- |
+| 应用不可用 | `up == 0` 持续 1 分钟 | critical |
+| HTTP 错误率过高 | 5xx 比例超过 5% 持续 5 分钟 | warning |
+| HTTP P95 延迟过高 | 超过 1 秒持续 5 分钟 | warning |
+| Outbox 积压 | PENDING 超过 100 持续 5 分钟 | warning |
+| Outbox 永久失败 | FAILED 大于 0 | critical |
+| 支付超时处理失败 | 10 分钟内出现失败 | critical |
+| 退款积压 | PENDING 超过 20 持续 10 分钟 | warning |
+| 退款失败 | 10 分钟内出现失败 | warning |
+
+表达式负责定义“什么是不正常”，`for` 负责要求异常持续一段时间。瞬间抖动不会立即通知，可以减少误报。Alertmanager 不负责计算 PromQL，它负责接收已经触发的告警，然后分组、去重、静默和发送。
+
+本地接收器故意不配置真实外部通知，触发的告警可以在 Prometheus、Alertmanager 和 Grafana 中查看。接入飞书或企业微信 Webhook 会向外部系统发送消息，应在明确提供地址后再配置，并通过环境变量或 Secret 管理 URL。
 
 ## 当前采集内容
 

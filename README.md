@@ -16,6 +16,8 @@
 - RabbitMQ 支付超时延迟消息、发布确认、有限重试、死信队列和定时扫描补偿
 - Transactional Outbox、本地事务事件、投递租约和指数退避重试
 - Prometheus 指标、Loki 日志、请求 Trace ID 和 Grafana 自动化仪表盘
+- Prometheus 告警规则、Alertmanager 分组路由和 Grafana 告警数据源
+- 整单退款、退款幂等、渠道回调去重和订单退款状态机
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
@@ -38,6 +40,7 @@
 - Redis / Spring Data Redis
 - RabbitMQ / Spring AMQP
 - Prometheus / Loki / Grafana Alloy / Grafana
+- Alertmanager
 - Flyway
 - H2（测试）
 - Maven Wrapper
@@ -103,6 +106,8 @@ curl http://localhost:8080/actuator/health
 RabbitMQ 管理界面为 `http://localhost:15672`，开发环境用户名和密码均为 `commerce`。
 
 Grafana 地址为 `http://localhost:3000`，开发环境用户名和密码均为 `admin`。启动应用并产生几次请求后，可在自动加载的 `Commerce Overview` 仪表盘查看 HTTP、JVM、Outbox 和日志数据。
+
+Alertmanager 地址为 `http://localhost:9093`。Prometheus 的 Alerts 页面位于 `http://localhost:9090/alerts`，Grafana 也已配置 Alertmanager 数据源。
 
 停止本地基础设施：
 

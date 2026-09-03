@@ -41,7 +41,7 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                    .requestMatchers("/api/users/**", "/api/orders/**", "/api/payments/**").hasRole("ADMIN")
+                    .requestMatchers("/api/users/**", "/api/orders/**", "/api/payments/**", "/api/refunds/**").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")

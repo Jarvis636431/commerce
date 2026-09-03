@@ -1,0 +1,81 @@
+groups:
+  - name: commerce-availability
+    rules:
+      - alert: CommerceApplicationDown
+        expr: up{job="commerce"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Commerce 应用不可用
+          description: Prometheus 已连续 1 分钟无法抓取 Commerce 指标。
+
+      - alert: CommerceHighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{application="commerce",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{application="commerce"}[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Commerce HTTP 5xx 错误率过高
+          description: 最近 5 分钟 HTTP 5xx 错误率持续超过 5%。
+
+      - alert: CommerceHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket{application="commerce"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Commerce HTTP P95 延迟过高
+          description: HTTP P95 延迟已持续 5 分钟超过 1 秒。
+
+  - name: commerce-business
+    rules:
+      - alert: CommerceOutboxBacklog
+        expr: commerce_outbox_events{application="commerce",status="PENDING"} > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Commerce Outbox 持续积压
+          description: 待投递事件连续 5 分钟超过 100 条。
+
+      - alert: CommerceOutboxPermanentFailure
+        expr: commerce_outbox_events{application="commerce",status="FAILED"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Commerce Outbox 存在永久失败事件
+          description: 至少一条 Outbox 事件已耗尽重试次数。
+
+      - alert: CommercePaymentTimeoutFailure
+        expr: increase(commerce_payment_timeout_total{application="commerce",outcome="failed"}[10m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 支付超时消费失败
+          description: 最近 10 分钟出现支付超时消息处理失败。
+
+      - alert: CommerceRefundPending
+        expr: commerce_refund_orders{application="commerce",status="PENDING"} > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 退款单持续待处理
+          description: 待退款订单连续 10 分钟超过 20 条。
+
+      - alert: CommerceRefundFailure
+        expr: increase(commerce_refund_operations_total{application="commerce",outcome="failure"}[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 退款渠道处理失败
+          description: 最近 10 分钟出现退款失败回调。

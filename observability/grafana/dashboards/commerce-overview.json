@@ -75,8 +75,28 @@
       "type": "timeseries"
     },
     {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 13 },
+      "id": 10,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [{ "expr": "commerce_refund_orders{application=\"commerce\"}", "legendFormat": "{{status}}", "refId": "A" }],
+      "title": "退款单状态",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 13 },
+      "id": 11,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [{ "expr": "sum by (outcome) (increase(commerce_refund_operations_total{application=\"commerce\"}[$__range]))", "legendFormat": "{{outcome}}", "refId": "A" }],
+      "title": "退款操作结果",
+      "type": "timeseries"
+    },
+    {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 13 },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 20 },
       "id": 8,
       "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
       "targets": [{ "expr": "{application=\"commerce\"}", "queryType": "range", "refId": "A" }],
@@ -85,7 +105,7 @@
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 13 },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 20 },
       "id": 9,
       "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
       "targets": [{ "expr": "{application=\"commerce\", level=\"ERROR\"}", "queryType": "range", "refId": "A" }],
