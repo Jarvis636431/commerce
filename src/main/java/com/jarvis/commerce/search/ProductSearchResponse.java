@@ -2,6 +2,7 @@ package com.jarvis.commerce.search;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public record ProductSearchResponse(
         Long productId,
@@ -10,11 +11,20 @@ public record ProductSearchResponse(
         List<String> skuNames,
         List<String> skuCodes,
         BigDecimal minPrice,
-        BigDecimal maxPrice
+        BigDecimal maxPrice,
+        float score,
+        Map<String, List<String>> highlights
 ) {
     static ProductSearchResponse from(ProductSearchDocument document) {
         return new ProductSearchResponse(Long.valueOf(document.getId()), document.getName(),
                 document.getDescription(), document.getSkuNames(), document.getSkuCodes(),
-                document.getMinPrice(), document.getMaxPrice());
+                document.getMinPrice(), document.getMaxPrice(), 0, Map.of());
+    }
+
+    static ProductSearchResponse from(org.springframework.data.elasticsearch.core.SearchHit<ProductSearchDocument> hit) {
+        ProductSearchDocument document = hit.getContent();
+        return new ProductSearchResponse(Long.valueOf(document.getId()), document.getName(),
+                document.getDescription(), document.getSkuNames(), document.getSkuCodes(),
+                document.getMinPrice(), document.getMaxPrice(), hit.getScore(), hit.getHighlightFields());
     }
 }

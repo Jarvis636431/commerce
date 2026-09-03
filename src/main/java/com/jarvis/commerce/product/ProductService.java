@@ -3,38 +3,34 @@ package com.jarvis.commerce.product;
 import com.jarvis.commerce.common.PageResponse;
 import com.jarvis.commerce.common.ConflictException;
 import com.jarvis.commerce.common.ResourceNotFoundException;
-import com.jarvis.commerce.search.ProductSearchIndexer;
+import com.jarvis.commerce.messaging.outbox.OutboxEventService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class ProductService {
-    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
-
     private final ProductRepository productRepository;
     private final SkuRepository skuRepository;
     private final ProductCacheStore productCacheStore;
-    private final ProductSearchIndexer searchIndexer;
+    private final OutboxEventService outboxEventService;
 
     public ProductService(ProductRepository productRepository, SkuRepository skuRepository,
-                          ProductCacheStore productCacheStore, ProductSearchIndexer searchIndexer) {
+                          ProductCacheStore productCacheStore, OutboxEventService outboxEventService) {
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
         this.productCacheStore = productCacheStore;
-        this.searchIndexer = searchIndexer;
+        this.outboxEventService = outboxEventService;
     }
 
     @Transactional
     public ProductResponse create(CreateProductRequest request) {
         Product product = new Product(request.name().trim(), normalizeDescription(request.description()));
         productRepository.save(product);
-        indexAfterCommit(product.getId());
+        requestSearchIndex(product.getId());
         return ProductResponse.from(product);
     }
 
@@ -67,7 +63,7 @@ public class ProductService {
         product.update(request.name().trim(), normalizeDescription(request.description()));
         productRepository.flush();
         evictAfterCommit(id);
-        indexAfterCommit(id);
+        requestSearchIndex(id);
         return ProductResponse.from(product);
     }
 
@@ -80,7 +76,7 @@ public class ProductService {
         product.putOnSale();
         productRepository.flush();
         evictAfterCommit(id);
-        indexAfterCommit(id);
+        requestSearchIndex(id);
         return ProductResponse.from(product);
     }
 
@@ -90,7 +86,7 @@ public class ProductService {
         product.takeOffSale();
         productRepository.flush();
         evictAfterCommit(id);
-        indexAfterCommit(id);
+        requestSearchIndex(id);
         return ProductResponse.from(product);
     }
 
@@ -101,7 +97,7 @@ public class ProductService {
         skuRepository.deleteAllByProductId(id);
         productRepository.delete(product);
         evictAfterCommit(id);
-        deleteIndexAfterCommit(id);
+        outboxEventService.requestProductIndexDelete(id);
     }
 
     Product findProduct(long id) {
@@ -127,29 +123,5 @@ public class ProductService {
         });
     }
 
-    void indexAfterCommit(long id) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    searchIndexer.index(id);
-                } catch (RuntimeException exception) {
-                    log.error("Failed to update product search index: productId={}", id, exception);
-                }
-            }
-        });
-    }
-
-    private void deleteIndexAfterCommit(long id) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    searchIndexer.delete(id);
-                } catch (RuntimeException exception) {
-                    log.error("Failed to delete product search document: productId={}", id, exception);
-                }
-            }
-        });
-    }
+    void requestSearchIndex(long id) { outboxEventService.requestProductIndex(id); }
 }

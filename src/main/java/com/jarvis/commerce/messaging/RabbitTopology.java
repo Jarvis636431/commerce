@@ -21,6 +21,13 @@ public final class RabbitTopology {
     public static final String REFUND_DEAD_LETTER_QUEUE = "commerce.refund.dead-letter";
     public static final String REFUND_DEAD_LETTER_KEY = "refund.dead-letter";
 
+    public static final String SEARCH_COMMAND_EXCHANGE = "commerce.search.command";
+    public static final String PRODUCT_INDEX_QUEUE = "commerce.search.product-index";
+    public static final String PRODUCT_INDEX_KEY = "product.index";
+    public static final String SEARCH_DEAD_LETTER_EXCHANGE = "commerce.search.dlx";
+    public static final String SEARCH_DEAD_LETTER_QUEUE = "commerce.search.dead-letter";
+    public static final String SEARCH_DEAD_LETTER_KEY = "search.dead-letter";
+
     private RabbitTopology() {
     }
 }

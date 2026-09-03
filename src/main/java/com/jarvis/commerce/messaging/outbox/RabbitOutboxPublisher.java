@@ -2,6 +2,7 @@ package com.jarvis.commerce.messaging.outbox;
 
 import com.jarvis.commerce.payment.PaymentTimeoutMessage;
 import com.jarvis.commerce.refund.RefundRequestedMessage;
+import com.jarvis.commerce.search.ProductIndexMessage;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -19,8 +20,12 @@ import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_COMMAND_EXCHA
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_SCHEDULE_KEY;
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_COMMAND_EXCHANGE;
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_COMMAND_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.PRODUCT_INDEX_KEY;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_DELETE;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_UPSERT;
 
 @Component
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
@@ -45,6 +50,9 @@ public class RabbitOutboxPublisher {
             publishPaymentTimeout(event);
         } else if (REFUND_REQUESTED.equals(event.eventType())) {
             publishRefundRequest(event);
+        } else if (PRODUCT_INDEX_UPSERT.equals(event.eventType())
+                || PRODUCT_INDEX_DELETE.equals(event.eventType())) {
+            publishProductIndex(event);
         } else {
             throw new IllegalArgumentException("Unsupported outbox event type: " + event.eventType());
         }
@@ -65,6 +73,15 @@ public class RabbitOutboxPublisher {
     private void publishRefundRequest(ClaimedOutboxEvent event) {
         RefundRequestedMessage payload = objectMapper.readValue(event.payload(), RefundRequestedMessage.class);
         publish(event, REFUND_COMMAND_EXCHANGE, REFUND_REQUEST_KEY, payload, message -> {
+            message.getMessageProperties().setMessageId(event.eventId());
+            message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+            return message;
+        });
+    }
+
+    private void publishProductIndex(ClaimedOutboxEvent event) {
+        ProductIndexMessage payload = objectMapper.readValue(event.payload(), ProductIndexMessage.class);
+        publish(event, SEARCH_COMMAND_EXCHANGE, PRODUCT_INDEX_KEY, payload, message -> {
             message.getMessageProperties().setMessageId(event.eventId());
             message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
             return message;

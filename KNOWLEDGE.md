@@ -653,3 +653,26 @@ Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、�
 重复投递可能发生，因此消费者对 `PENDING`、`PROCESSING` 都可以使用退款号作为渠道幂等标识重新提交；终态退款直接跳过。先调用渠道、后记录 `PROCESSING` 可以避免数据库先提交后进程宕机导致请求永远未发送。两者之间宕机可能重复调用渠道，所以真实 `RefundGateway` 必须以退款号实现幂等。
 
 当前模拟渠道只记录“已接受退款”，真实退款结果仍由异步成功/失败回调推进。V11 使用 Java Flyway Migration 动态查找并移除旧的 `payment_id` 唯一约束，这是因为 PostgreSQL 和 H2 自动生成的约束名称不同；之后重新建立普通外键和查询索引。当前仍未实现按订单项退款、运费分摊和人工死信重放。
+
+## 28. Elasticsearch 查询副本与可靠同步
+
+商品搜索采用“事实源 + 查询副本”结构。PostgreSQL 保存可信的 Product、SKU、价格和上下架状态；Elasticsearch 保存为搜索优化的扁平文档，把一个商品及其多个 SKU 名称、编码和价格范围冗余到同一份 `ProductSearchDocument` 中。冗余减少搜索时的跨表查询，但也意味着它必须通过同步机制维护。
+
+```text
+Product / SKU 事务
+├── 更新 PostgreSQL 业务数据
+└── 写 Product Outbox Event
+    → Outbox Relay
+    → RabbitMQ product-index queue
+    → ProductIndexConsumer
+    → 读取 PostgreSQL 最新聚合
+    → Elasticsearch upsert / delete
+```
+
+业务数据和 Outbox 事件使用同一本地事务，解决“数据库成功、同步任务丢失”的双写问题。RabbitMQ 和消费者允许重复投递：UPSERT 总是按商品 ID 读取数据库最新状态并覆盖同 ID 文档，DELETE 删除不存在的文档也不会产生额外副作用，因此操作具备幂等性。失败由 RabbitMQ 重试并最终进入 DLQ，全量重建作为最终修复手段。
+
+搜索使用 `multi_match`，名称权重最高，其次是 SKU 名称/编码和描述；只有 `ON_SALE` 文档可见。价格筛选判断查询区间是否与商品所有 SKU 构成的最低价—最高价区间相交。排序支持相关性、价格升降序和更新时间，命中片段通过 highlight 返回给前端。
+
+ES 更新是最终一致的，搜索页短暂看到旧数据是允许的，但下单绝不能直接信任搜索文档，必须回到 PostgreSQL 和库存模块重新校验 SKU、价格、状态与库存。索引同步成功/失败 Counter、日志、Prometheus 告警和管理员全量重建共同组成运维闭环。
+
+当前先使用标准分词器学习完整链路。中文搜索通常需要专用分析器、词典和停用词；分析器属于 Mapping 的一部分，修改时通常创建带版本号的新索引、重建数据，再原子切换 alias，而不是直接修改线上旧索引。

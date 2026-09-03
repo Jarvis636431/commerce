@@ -6,7 +6,9 @@ Elasticsearch 是面向搜索和分析的分布式文档数据库，不是 Java 
 
 ```text
 PostgreSQL Product / SKU（事实源）
-→ 事务提交后构建 ProductSearchDocument
+→ 同一本地事务写入 Product Outbox Event
+→ Outbox Relay → RabbitMQ 商品索引队列
+→ 消费者读取数据库最新状态并构建 ProductSearchDocument
 → Elasticsearch commerce-products 索引（查询副本）
 → GET /api/search/products?q=关键字
 ```
@@ -65,17 +67,29 @@ curl -X POST http://localhost:8080/api/admin/search/products/rebuild \
 curl 'http://localhost:8080/api/search/products?q=Java&page=0&size=20'
 ```
 
+价格过滤、排序和高亮：
+
+```bash
+curl 'http://localhost:8080/api/search/products?q=Java&minPrice=50&maxPrice=200&sort=PRICE_ASC&page=0&size=20'
+```
+
+`sort` 支持 `RELEVANCE`、`PRICE_ASC`、`PRICE_DESC` 和 `NEWEST`。价格条件采用区间相交语义：只要商品的 SKU 价格范围与查询范围有交集就会命中。响应中的 `score` 是相关性分数，`highlights` 返回名称、描述和 SKU 名称里的匹配片段。
+
 可以直接查看索引内容：
 
 ```bash
 curl 'http://localhost:9200/commerce-products/_search?pretty'
 ```
 
-## 当前同步策略
+## 可靠增量同步
 
-商品或 SKU 创建、修改、上下架、删除时，应用注册事务 `afterCommit` 回调。只有 PostgreSQL 成功提交后才更新 ES，避免数据库回滚而索引提前改变。ES 更新失败只记录错误，不把已经成功的业务事务伪装成失败；管理员可以用全量重建恢复。
+商品或 SKU 创建、修改、上下架、删除时，业务数据和 `PRODUCT_INDEX_UPSERT` / `PRODUCT_INDEX_DELETE` Outbox 事件在同一个 PostgreSQL 事务中提交。这样不会出现“商品成功但同步任务没有落库”的事务空隙。
 
-这个方案仍有失败窗口：数据库提交后、回调执行前进程宕机，或者 ES 长时间不可用，可能造成漏同步。因此它是接入搜索的第一阶段，不是最终可靠方案。下一步应写入 Product Outbox 事件，通过 RabbitMQ 重试同步，并保留全量重建用于最终修复。
+Relay 获得 RabbitMQ Publisher Confirm 后标记事件已发送；消费者失败会按监听器策略重试，耗尽后进入搜索 DLQ。消息只携带商品 ID，消费者总是重新读取数据库最新状态，因此重复 UPSERT 是幂等的，删除不存在的文档也是幂等的。多条快速变更最终都会收敛到 PostgreSQL 的最新状态。
+
+这仍属于最终一致性：数据库提交后到消费者完成前，搜索结果允许短暂陈旧。指标 `commerce_search_index_total{outcome="success|failure"}`、结构化日志和 Prometheus 告警用于发现失败；管理员全量重建仍是批量修复和灾难恢复手段。
+
+当前使用 Elasticsearch 标准分词器，英文和数字检索可以直接学习验证。中文分词插件与 Elasticsearch 版本强绑定，后续再引入 IK 或其他中文分析器，并通过新索引 + alias 切换完成 Mapping 迁移。
 
 ## 测试环境
 
@@ -86,4 +100,4 @@ commerce.search.enabled: false
 spring.data.elasticsearch.repositories.enabled: false
 ```
 
-业务集成测试不需要启动 ES，使用 `NoOpProductSearchIndexer`。搜索文档转换通过独立单元测试验证，真正的 ES Mapping 和查询还应增加 Testcontainers 集成测试。
+业务集成测试不需要启动 ES，使用 `NoOpProductSearchIndexer`。搜索文档转换与消息消费者通过独立单元测试验证，真正的 ES Mapping 和查询还应增加 Testcontainers 集成测试。

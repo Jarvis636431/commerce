@@ -32,6 +32,13 @@ public class GlobalExceptionHandler {
         return detail;
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    ProblemDetail handleBadRequest(BadRequestException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setTitle("Invalid request");
+        return detail;
+    }
+
     @ExceptionHandler({ConflictException.class, ProductStateException.class})
     ProblemDetail handleConflict(RuntimeException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());

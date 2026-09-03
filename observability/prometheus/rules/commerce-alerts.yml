@@ -79,3 +79,11 @@ groups:
         annotations:
           summary: 退款渠道处理失败
           description: 最近 10 分钟出现退款失败回调。
+
+      - alert: CommerceProductIndexFailure
+        expr: increase(commerce_search_index_total{application="commerce",outcome="failure"}[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 商品搜索索引同步失败
+          description: 最近 10 分钟出现 PostgreSQL 商品变更同步到 Elasticsearch 失败。

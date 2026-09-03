@@ -2,6 +2,8 @@ package com.jarvis.commerce.messaging.outbox;
 
 import com.jarvis.commerce.payment.PaymentTimeoutMessage;
 import com.jarvis.commerce.refund.RefundRequestedMessage;
+import com.jarvis.commerce.search.ProductIndexMessage;
+import com.jarvis.commerce.search.ProductIndexOperation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,8 @@ import java.util.UUID;
 
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_DELETE;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PRODUCT_INDEX_UPSERT;
 
 @Service
 public class OutboxEventService {
@@ -57,6 +61,24 @@ public class OutboxEventService {
         RefundRequestedMessage message = new RefundRequestedMessage(eventId, refundNo, now);
         repository.save(new OutboxEvent(eventId, "REFUND", refundNo,
                 REFUND_REQUESTED, objectMapper.writeValueAsString(message), now));
+    }
+
+    @Transactional
+    public void requestProductIndex(long productId) {
+        saveProductIndexEvent(productId, ProductIndexOperation.UPSERT, PRODUCT_INDEX_UPSERT);
+    }
+
+    @Transactional
+    public void requestProductIndexDelete(long productId) {
+        saveProductIndexEvent(productId, ProductIndexOperation.DELETE, PRODUCT_INDEX_DELETE);
+    }
+
+    private void saveProductIndexEvent(long productId, ProductIndexOperation operation, String eventType) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        String eventId = UUID.randomUUID().toString();
+        ProductIndexMessage message = new ProductIndexMessage(eventId, productId, operation, now);
+        repository.save(new OutboxEvent(eventId, "PRODUCT", Long.toString(productId),
+                eventType, objectMapper.writeValueAsString(message), now));
     }
 
     @Transactional

@@ -18,7 +18,7 @@
 - Prometheus 指标、Loki 日志、请求 Trace ID 和 Grafana 自动化仪表盘
 - Prometheus 告警规则、Alertmanager 分组路由和 Grafana 告警数据源
 - 整单/部分退款、累计额度控制、Outbox 异步提交、渠道回调去重和订单退款状态机
-- Elasticsearch 商品全文搜索、SKU 检索和索引全量重建
+- Elasticsearch 商品全文搜索、价格筛选/排序/高亮、Outbox 增量同步和索引全量重建
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL

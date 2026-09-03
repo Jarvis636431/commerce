@@ -29,6 +29,12 @@ import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_DEAD_LETTER_KE
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_DEAD_LETTER_QUEUE;
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_KEY;
 import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_QUEUE;
+import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_COMMAND_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.PRODUCT_INDEX_QUEUE;
+import static com.jarvis.commerce.messaging.RabbitTopology.PRODUCT_INDEX_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_DEAD_LETTER_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_DEAD_LETTER_QUEUE;
+import static com.jarvis.commerce.messaging.RabbitTopology.SEARCH_DEAD_LETTER_KEY;
 
 @Configuration
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
@@ -131,5 +137,39 @@ public class RabbitMqConfiguration {
     Binding refundDeadLetterBinding(Queue refundDeadLetterQueue, DirectExchange refundDeadLetterExchange) {
         return BindingBuilder.bind(refundDeadLetterQueue)
                 .to(refundDeadLetterExchange).with(REFUND_DEAD_LETTER_KEY);
+    }
+
+    @Bean
+    DirectExchange searchCommandExchange() {
+        return new DirectExchange(SEARCH_COMMAND_EXCHANGE, true, false);
+    }
+
+    @Bean
+    DirectExchange searchDeadLetterExchange() {
+        return new DirectExchange(SEARCH_DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    @Bean
+    Queue productIndexQueue() {
+        return QueueBuilder.durable(PRODUCT_INDEX_QUEUE)
+                .deadLetterExchange(SEARCH_DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(SEARCH_DEAD_LETTER_KEY)
+                .build();
+    }
+
+    @Bean
+    Binding productIndexBinding(Queue productIndexQueue, DirectExchange searchCommandExchange) {
+        return BindingBuilder.bind(productIndexQueue).to(searchCommandExchange).with(PRODUCT_INDEX_KEY);
+    }
+
+    @Bean
+    Queue searchDeadLetterQueue() {
+        return QueueBuilder.durable(SEARCH_DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding searchDeadLetterBinding(Queue searchDeadLetterQueue, DirectExchange searchDeadLetterExchange) {
+        return BindingBuilder.bind(searchDeadLetterQueue)
+                .to(searchDeadLetterExchange).with(SEARCH_DEAD_LETTER_KEY);
     }
 }

@@ -25,12 +25,13 @@
 - [x] 使用 Spring Data Elasticsearch 接入 Elasticsearch
 - [x] 设计商品搜索文档和 Index Mapping
 - [x] 支持名称、描述、SKU 的全文检索
-- [ ] 支持价格区间、上下架状态过滤和更多排序方式
-- 学习中文分词、倒排索引、相关性评分和高亮
-- [ ] 使用 Outbox/RabbitMQ 可靠同步 PostgreSQL 商品变更到 ES
+- [x] 支持价格区间、上下架状态过滤和更多排序方式
+- [x] 学习倒排索引、相关性评分和高亮
+- [ ] 接入中文分词并使用 alias 完成索引 Mapping 迁移
+- [x] 使用 Outbox/RabbitMQ 可靠同步 PostgreSQL 商品变更到 ES
 - [x] 实现事务提交后增量更新和管理员全量重建
 - [x] 明确 PostgreSQL 是事实源，ES 是可以重建的查询副本
-- 增加索引同步失败指标、日志和告警
+- [x] 增加索引同步失败指标、日志和告警
 
 ### 2. MinIO / S3 对象存储
 

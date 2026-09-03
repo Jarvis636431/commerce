@@ -28,7 +28,7 @@ public class SkuService {
         }
         Sku sku = new Sku(product, code, request.name().trim(), request.price());
         skuRepository.save(sku);
-        productService.indexAfterCommit(productId);
+        productService.requestSearchIndex(productId);
         return SkuResponse.from(sku);
     }
 
@@ -43,7 +43,7 @@ public class SkuService {
         Sku sku = findSku(productId, skuId);
         sku.update(request.name().trim(), request.price());
         skuRepository.flush();
-        productService.indexAfterCommit(productId);
+        productService.requestSearchIndex(productId);
         return SkuResponse.from(sku);
     }
 
@@ -52,7 +52,7 @@ public class SkuService {
         Sku sku = findSku(productId, skuId);
         sku.getProduct().ensureSkuEditable();
         skuRepository.delete(sku);
-        productService.indexAfterCommit(productId);
+        productService.requestSearchIndex(productId);
     }
 
     private Sku findSku(long productId, long skuId) {
