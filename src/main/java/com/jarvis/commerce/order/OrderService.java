@@ -75,6 +75,11 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    public OrderResponse getForUser(long id, long userId) {
+        return toResponse(findOrderForUser(id, userId));
+    }
+
+    @Transactional(readOnly = true)
     public PageResponse<OrderResponse> list(Pageable pageable) {
         Page<CustomerOrder> orders = orderRepository.findAll(pageable);
         return PageResponse.from(orders, this::toResponse);
@@ -101,13 +106,13 @@ public class OrderService {
     @Transactional
     public OrderResponse cancel(long id) {
         CustomerOrder order = findOrder(id);
-        order.cancel();
-        for (InventoryReservation reservation : reservations(id)) {
-            inventoryService.release(reservation.getSkuId(), new InventoryQuantityRequest(reservation.getQuantity()));
-            reservation.release();
-        }
-        orderRepository.flush();
-        return toResponse(order);
+        return cancelOrder(order);
+    }
+
+    @Transactional
+    public OrderResponse cancelForUser(long id, long userId) {
+        CustomerOrder order = findOrderForUser(id, userId);
+        return cancelOrder(order);
     }
 
     @Transactional
@@ -142,6 +147,21 @@ public class OrderService {
     private CustomerOrder findOrder(long id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order %d was not found".formatted(id)));
+    }
+
+    private CustomerOrder findOrderForUser(long id, long userId) {
+        return orderRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order %d was not found".formatted(id)));
+    }
+
+    private OrderResponse cancelOrder(CustomerOrder order) {
+        order.cancel();
+        for (InventoryReservation reservation : reservations(order.getId())) {
+            inventoryService.release(reservation.getSkuId(), new InventoryQuantityRequest(reservation.getQuantity()));
+            reservation.release();
+        }
+        orderRepository.flush();
+        return toResponse(order);
     }
 
     private List<InventoryReservation> reservations(long orderId) {
