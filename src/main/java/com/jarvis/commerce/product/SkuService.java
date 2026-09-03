@@ -27,7 +27,9 @@ public class SkuService {
             throw new ConflictException("SKU code %s already exists".formatted(code));
         }
         Sku sku = new Sku(product, code, request.name().trim(), request.price());
-        return SkuResponse.from(skuRepository.save(sku));
+        skuRepository.save(sku);
+        productService.indexAfterCommit(productId);
+        return SkuResponse.from(sku);
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +43,7 @@ public class SkuService {
         Sku sku = findSku(productId, skuId);
         sku.update(request.name().trim(), request.price());
         skuRepository.flush();
+        productService.indexAfterCommit(productId);
         return SkuResponse.from(sku);
     }
 
@@ -49,6 +52,7 @@ public class SkuService {
         Sku sku = findSku(productId, skuId);
         sku.getProduct().ensureSkuEditable();
         skuRepository.delete(sku);
+        productService.indexAfterCommit(productId);
     }
 
     private Sku findSku(long productId, long skuId) {

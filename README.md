@@ -2,7 +2,7 @@
 
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)，监控与日志见 [OBSERVABILITY.md](OBSERVABILITY.md)。
+项目后续路线见 [ROADMAP.md](ROADMAP.md)。详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，搜索专题见 [ELASTICSEARCH.md](ELASTICSEARCH.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)，监控与日志见 [OBSERVABILITY.md](OBSERVABILITY.md)。
 
 ## 当前能力
 
@@ -18,6 +18,7 @@
 - Prometheus 指标、Loki 日志、请求 Trace ID 和 Grafana 自动化仪表盘
 - Prometheus 告警规则、Alertmanager 分组路由和 Grafana 告警数据源
 - 整单/部分退款、累计额度控制、Outbox 异步提交、渠道回调去重和订单退款状态机
+- Elasticsearch 商品全文搜索、SKU 检索和索引全量重建
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL
@@ -41,6 +42,7 @@
 - RabbitMQ / Spring AMQP
 - Prometheus / Loki / Grafana Alloy / Grafana
 - Alertmanager
+- Elasticsearch / Spring Data Elasticsearch
 - Flyway
 - H2（测试）
 - Maven Wrapper

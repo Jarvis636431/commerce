@@ -1,4 +1,4 @@
-.PHONY: test run clean db-up db-down db-status db-logs redis-up redis-down redis-status redis-logs redis-cli rabbit-up rabbit-down rabbit-status rabbit-logs observe-up observe-down observe-status observe-logs infra-up infra-down
+.PHONY: test run clean db-up db-down db-status db-logs redis-up redis-down redis-status redis-logs redis-cli rabbit-up rabbit-down rabbit-status rabbit-logs es-up es-down es-status es-logs observe-up observe-down observe-status observe-logs infra-up infra-down
 
 test:
 	./mvnw test
@@ -48,6 +48,18 @@ rabbit-status:
 rabbit-logs:
 	docker compose logs -f rabbitmq
 
+es-up:
+	docker compose up -d elasticsearch
+
+es-down:
+	docker compose stop elasticsearch
+
+es-status:
+	docker compose ps elasticsearch
+
+es-logs:
+	docker compose logs -f elasticsearch
+
 observe-up:
 	mkdir -p logs
 	docker compose up -d prometheus alertmanager loki alloy grafana
@@ -63,7 +75,7 @@ observe-logs:
 
 infra-up:
 	mkdir -p logs
-	docker compose up -d postgres redis rabbitmq prometheus alertmanager loki alloy grafana
+	docker compose up -d postgres redis rabbitmq elasticsearch prometheus alertmanager loki alloy grafana
 
 infra-down:
-	docker compose stop postgres redis rabbitmq prometheus alertmanager loki alloy grafana
+	docker compose stop postgres redis rabbitmq elasticsearch prometheus alertmanager loki alloy grafana

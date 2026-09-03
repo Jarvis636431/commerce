@@ -6,8 +6,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  data:
+    elasticsearch:
+      repositories:
+        enabled: false
 
 commerce:
+  search:
+    enabled: false
   messaging:
     enabled: false
   security:

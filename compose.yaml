@@ -44,6 +44,23 @@ services:
       timeout: 5s
       retries: 12
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.5
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.license.self_generated.type: basic
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - commerce-elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   prometheus:
     image: prom/prometheus:v3.5.0
     command:
@@ -117,6 +134,7 @@ volumes:
   commerce-postgres-data:
   commerce-redis-data:
   commerce-rabbitmq-data:
+  commerce-elasticsearch-data:
   commerce-prometheus-data:
   commerce-alertmanager-data:
   commerce-loki-data:

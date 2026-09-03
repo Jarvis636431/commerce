@@ -31,6 +31,10 @@ spring:
           initial-interval: 1s
           multiplier: 2
           max-interval: 4s
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 2s
+    socket-timeout: 5s
   jpa:
     open-in-view: false
     hibernate:
@@ -87,6 +91,8 @@ commerce:
     ttl: PT10M
     not-found-ttl: PT30S
     ttl-jitter: PT2M
+  search:
+    enabled: true
   payment:
     timeout: PT15M
     timeout-scan-interval: 60000
