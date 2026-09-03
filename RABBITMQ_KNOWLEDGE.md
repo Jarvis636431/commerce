@@ -95,7 +95,7 @@ commerce.payment.command
                  └─ commerce.payment.event
                       └─ payment.timeout.due
                            └─ commerce.payment.timeout（未来消费者监听）
-                                └─ 多次失败且拒绝
+                                └─ 处理失败且拒绝
                                      └─ commerce.payment.dlx
                                           └─ commerce.payment.dead-letter
 ```
@@ -189,3 +189,230 @@ RABBITMQ_PASSWORD
 ```
 
 不要在生产环境使用仓库中的默认账号密码。生产环境还应使用独立 vhost、最小权限用户、TLS、监控告警和高可用队列策略。
+
+## 9. Transactional Outbox 是什么
+
+Outbox（事务发件箱）解决的是“业务数据库已经提交，但消息没有可靠发送到 MQ”的一致性问题。它不是某个 MQ 的专属功能，RabbitMQ、RocketMQ 和 Kafka 都可以配合 Outbox 使用。
+
+如果业务代码直接执行两步：
+
+```text
+1. INSERT payment_order
+2. 发送 RabbitMQ 消息
+```
+
+这两步属于两个独立系统，无法由普通的 Spring 数据库事务一起保证：
+
+- 数据库成功、消息失败：支付单存在，但没有超时消息。
+- 消息成功、数据库回滚：MQ 中出现一个不存在的支付单，即“幽灵消息”。
+
+当前项目使用 `afterCommit`，先提交数据库，再发送消息，可以避免幽灵消息：
+
+```text
+提交 payment_order
+→ afterCommit
+→ 发送 RabbitMQ 消息
+```
+
+但它仍然有一个窗口：数据库提交后，应用可能在发送消息之前宕机。支付记录已经存在，消息却没有产生。当前保留的数据库超时扫描能够补偿业务结果，但不能从根本上证明每条领域事件都已成功投递。
+
+### 9.1 Outbox 的工作方式
+
+在同一个业务数据库中建立事件表，例如：
+
+```sql
+CREATE TABLE outbox_event (
+    id UUID PRIMARY KEY,
+    aggregate_type VARCHAR(50) NOT NULL,
+    aggregate_id VARCHAR(100) NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    payload TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    next_retry_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
+    sent_at TIMESTAMP
+);
+```
+
+创建支付时，不立即依赖 MQ 成功，而是在一个 PostgreSQL 本地事务中同时写入业务数据和 Outbox：
+
+```text
+PostgreSQL 本地事务
+├── INSERT payment_order
+└── INSERT outbox_event(status = PENDING)
+```
+
+同一个数据库事务只有两种结果：两条记录一起提交，或者一起回滚。随后由 Outbox Publisher 扫描并投递：
+
+```text
+查询 PENDING/RETRY 事件
+→ 发送到 RabbitMQ
+→ 收到 Publisher Confirm
+→ 将 Outbox 标记为 SENT
+```
+
+RabbitMQ 暂时不可用时，事件仍保存在数据库中，任务可以按 `next_retry_at` 继续重试。多实例扫描时，可以使用悲观锁配合 `SKIP LOCKED`、任务分片或抢占状态，避免所有实例同时处理相同批次。
+
+### 9.2 为什么有 Outbox 仍然可能重复
+
+假设 RabbitMQ 已经收到消息，但应用在把 Outbox 更新为 `SENT` 之前宕机：
+
+```text
+RabbitMQ 收到消息
+→ 应用宕机
+→ Outbox 仍是 PENDING
+→ 重启后再次发送
+```
+
+因此 Outbox通常提供“至少投递一次”，而不是“全链路绝对一次”。消息需要稳定的 `eventId`，消费者仍要通过唯一约束、消费记录或业务状态机实现幂等。
+
+### 9.3 扫描 Outbox 与 CDC
+
+简单项目可以定时扫描 Outbox 表，容易理解和排查，但有轮询压力和投递延迟。更大规模的系统可以使用 CDC 工具读取数据库事务日志，例如监听 Outbox 表的变更并发送到消息系统，从而减少业务应用主动扫描。
+
+无论使用扫描还是 CDC，Outbox 的核心都不变：**先使用本地数据库事务可靠记录“需要发送的事件”，再异步投递。**
+
+## 10. RocketMQ 的 Topic 是什么
+
+Topic 是 RocketMQ 对消息进行逻辑分类、存储和订阅的一级概念。电商系统通常按照业务领域划分：
+
+```text
+order-events
+payment-events
+inventory-events
+user-events
+```
+
+一条 RocketMQ 消息常见的信息可以这样理解：
+
+```text
+Topic：消息的大类，例如 payment-events
+Tag：Topic 内的子类型，例如 success、failed、timeout
+Key：用于检索和追踪的业务标识，例如 PAY123
+Body：事件的实际内容
+```
+
+例如：
+
+| Topic | Tag | Key | 含义 |
+|---|---|---|---|
+| `payment-events` | `success` | `PAY123` | 支付成功 |
+| `payment-events` | `failed` | `PAY124` | 支付失败 |
+| `payment-events` | `timeout` | `PAY125` | 支付超时 |
+| `order-events` | `created` | `ORD100` | 订单创建 |
+
+### 10.1 Topic 与 MessageQueue
+
+一个 Topic 在 Broker 内部通常包含多个 MessageQueue：
+
+```text
+payment-events
+├── MessageQueue 0
+├── MessageQueue 1
+├── MessageQueue 2
+└── MessageQueue 3
+```
+
+MessageQueue 是 Topic 的并行存储和消费分区。生产者发送消息时，消息会被选择写入其中一个 MessageQueue；同一 Consumer Group 内的消费者共同分配这些 MessageQueue：
+
+```text
+payment-consumer-group
+├── Consumer A → MessageQueue 0、1
+└── Consumer B → MessageQueue 2、3
+```
+
+MessageQueue 数量会影响可并行消费能力。如果队列数量少于消费者数量，多出的消费者无法分配到队列；但队列也不是越多越好，它会增加 Broker 元数据、调度和客户端负担。
+
+### 10.2 Consumer Group
+
+同一个 Consumer Group 内，一条消息由组内某个消费者处理，用于负载均衡。不同 Consumer Group 可以独立消费同一个 Topic：
+
+```text
+Topic: payment-events
+├── order-consumer-group        修改订单状态
+├── points-consumer-group       增加积分
+└── notification-consumer-group 发送通知
+```
+
+三个消费组分别维护自己的消费进度，所以同一条支付事件可以独立触发三类业务；同组内增加实例则主要用于扩容，而不是让相同业务重复执行。
+
+### 10.3 Topic 应该如何划分
+
+Topic 太细会导致 Topic 和队列数量膨胀：
+
+```text
+payment-success-topic
+payment-failed-topic
+payment-timeout-topic
+```
+
+Topic 太粗又会把权限、存储周期、吞吐和故障范围全部混在一起：
+
+```text
+commerce-all-events
+```
+
+通常按稳定的业务领域划分 Topic，再用 Tag 区分领域内的事件类型：
+
+```text
+Topic: payment-events
+Tags: success / failed / timeout
+```
+
+如果不同消息在权限、保留时间、顺序、吞吐或可靠性等级上差异很大，则应考虑拆成不同 Topic。
+
+### 10.4 RabbitMQ 和 RocketMQ 模型对照
+
+```text
+RabbitMQ:
+Producer → Exchange → Binding → Queue → Consumer
+
+RocketMQ:
+Producer → Topic → MessageQueue → Consumer Group
+```
+
+二者不能机械地一一对应：RabbitMQ 的 Queue 是直接承载消费的队列，Exchange 专门负责灵活路由；RocketMQ 的 MessageQueue 更接近 Topic 内的分区，消费进度和负载分配以 Consumer Group 为重要边界。
+
+可以记住关注点的不同：
+
+```text
+RabbitMQ：消息应该根据什么规则进入哪些 Queue？
+RocketMQ：消息属于哪个 Topic，由哪些消费组消费到哪个位置？
+```
+
+## 11. Outbox 与 Topic 如何组合
+
+Outbox 和 Topic 不属于同一层，它们可以同时使用：
+
+```text
+PostgreSQL 本地事务
+├── 保存 payment_order
+└── 保存 outbox_event
+          ↓
+    Outbox Publisher
+          ↓
+RocketMQ Topic: payment-events
+Tag: timeout-scheduled
+          ↓
+payment-timeout-consumer-group
+          ↓
+检查状态并执行超时关单
+```
+
+换成 RabbitMQ 时只是投递目标发生变化：
+
+```text
+Outbox Publisher
+→ RabbitMQ Exchange
+→ Binding
+→ Queue
+→ Consumer
+```
+
+最终可以这样记忆：
+
+```text
+Outbox：解决业务数据与消息投递之间的一致性。
+Topic：解决 RocketMQ 中消息如何分类、分区和被消费组订阅。
+```

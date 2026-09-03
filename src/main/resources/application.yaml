@@ -24,6 +24,7 @@ spring:
     listener:
       simple:
         acknowledge-mode: manual
+        default-requeue-rejected: false
   jpa:
     open-in-view: false
     hibernate:

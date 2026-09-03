@@ -2,7 +2,7 @@
 
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)。
+详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)，面试复习见 [MQ_INTERVIEW.md](MQ_INTERVIEW.md)。
 
 ## 当前能力
 
@@ -13,6 +13,7 @@
 - 订单项成交快照和订单级库存预占记录
 - 支付单、幂等创建、模拟支付通知和重复通知去重
 - 支付超时扫描、自动取消订单和库存释放
+- RabbitMQ 支付超时延迟消息、手动 ACK、死信队列和定时扫描补偿
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL

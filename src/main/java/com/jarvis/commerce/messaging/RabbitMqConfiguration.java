@@ -5,6 +5,8 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,11 @@ import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_SCHED
 @Configuration
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
 public class RabbitMqConfiguration {
+
+    @Bean
+    MessageConverter rabbitMessageConverter() {
+        return new JacksonJsonMessageConverter();
+    }
 
     @Bean
     DirectExchange paymentCommandExchange() {

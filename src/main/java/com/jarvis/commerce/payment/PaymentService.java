@@ -24,18 +24,21 @@ public class PaymentService {
     private final OrderService orderService;
     private final Clock clock;
     private final Duration paymentTimeout;
+    private final PaymentTimeoutPublisher timeoutPublisher;
 
     public PaymentService(PaymentOrderRepository paymentRepository,
                           PaymentNotificationRepository notificationRepository,
                           CustomerOrderRepository orderRepository,
                           OrderService orderService,
                           Clock clock,
+                          PaymentTimeoutPublisher timeoutPublisher,
                           @Value("${commerce.payment.timeout:PT15M}") Duration paymentTimeout) {
         this.paymentRepository = paymentRepository;
         this.notificationRepository = notificationRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.clock = clock;
+        this.timeoutPublisher = timeoutPublisher;
         this.paymentTimeout = paymentTimeout;
     }
 
@@ -75,6 +78,7 @@ public class PaymentService {
         PaymentOrder payment = paymentRepository.save(new PaymentOrder(
                 generatePaymentNo(), order, idempotencyKey, order.getTotalAmount(),
                 OffsetDateTime.now(clock).plus(paymentTimeout)));
+        timeoutPublisher.publishAfterCommit(payment.getPaymentNo(), payment.getExpiresAt());
         return PaymentResponse.from(payment);
     }
 
@@ -152,6 +156,7 @@ public class PaymentService {
             throw new ConflictException("Payment cannot be retried because the order is no longer pending");
         }
         payment.retry(OffsetDateTime.now(clock).plus(paymentTimeout));
+        timeoutPublisher.publishAfterCommit(payment.getPaymentNo(), payment.getExpiresAt());
         paymentRepository.flush();
         return PaymentResponse.from(payment);
     }
