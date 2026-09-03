@@ -17,7 +17,7 @@
 - Transactional Outbox、本地事务事件、投递租约和指数退避重试
 - Prometheus 指标、Loki 日志、请求 Trace ID 和 Grafana 自动化仪表盘
 - Prometheus 告警规则、Alertmanager 分组路由和 Grafana 告警数据源
-- 整单退款、退款幂等、Outbox 异步提交、渠道回调去重和订单退款状态机
+- 整单/部分退款、累计额度控制、Outbox 异步提交、渠道回调去重和订单退款状态机
 - 用户创建、查询、资料修改和启用/禁用
 - 用户收货地址管理、默认地址和订单地址快照
 - 基于 Redis Hash 的用户购物车、原子数量累加和 30 天 TTL

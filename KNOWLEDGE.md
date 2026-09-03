@@ -620,9 +620,9 @@ Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、�
 
 告警应尽量描述用户或业务影响，而不是“CPU 一高就报警”。当前项目首先监控可用性、5xx、P95、Outbox 永久失败和退款积压。这些信号比孤立的资源波动更接近真实故障。
 
-## 27. 整单退款模型
+## 27. 退款与部分退款模型
 
-第一版退款限定为“一笔成功支付最多创建一个整单退款”。创建退款单要求支付状态为 `SUCCESS`，退款金额直接取支付金额，不能相信客户端提交的金额。退款请求使用 `Idempotency-Key`，相同 Key 和相同订单返回原退款单，避免客户端重试造成重复退款。
+创建退款单要求支付状态为 `SUCCESS`。请求不传 `amount` 时退还全部剩余额度，传入金额时创建部分退款；金额必须大于零且最多保留两位小数。服务端始终根据支付金额和历史退款重新计算剩余额度，不能相信客户端声明的“可退金额”。退款请求使用 `Idempotency-Key`，相同 Key、订单和金额返回原退款单，避免客户端重试造成重复退款。
 
 ```text
 订单 PAID / COMPLETED
@@ -630,16 +630,26 @@ Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、�
 → 订单 REFUNDING
 → Outbox Relay → RabbitMQ → 退款消费者
 → 渠道接受请求：RefundOrder PROCESSING
-→ 渠道成功回调：RefundOrder SUCCESS → 订单 REFUNDED
+→ 渠道成功回调：RefundOrder SUCCESS
+   ├── 累计金额 = 实付金额 → 订单 REFUNDED
+   └── 累计金额 < 实付金额 → 订单恢复 PAID / COMPLETED
 → 渠道失败回调：RefundOrder FAILED → 订单恢复 PAID / COMPLETED
 ```
 
-退款单保存 `orderStatusBeforeRefund`，因为失败时必须知道订单原来是已支付还是已完成。渠道通知使用全局唯一 `notificationId` 去重，同一通知重复到达只返回当前结果；通知 ID 被其他退款占用则产生冲突。实体使用 `@Version` 防止两个不同回调同时推进同一退款单。
+一笔支付现在可以关联多张退款单。退款额度计算为：
 
-用户接口为 `/api/me/refunds`，用户 ID 取自验签后的 Access Token，并通过关联的支付单和订单检查所有权。管理接口 `/api/refunds` 受 ADMIN 权限保护；`mock-success` 和 `mock-failure` 仅用于模拟真实支付渠道的异步退款回调。
+```text
+剩余可退金额 = 实付金额 - Σ(PENDING、PROCESSING、SUCCESS 的退款金额)
+```
+
+`FAILED` 不占用额度。当前为了保持订单状态明确，同一支付同一时刻只允许一张活动退款单；前一张成功或失败后才能继续申请。创建时对 `payment_order` 加数据库悲观写锁，因此两个并发请求必须串行完成额度检查和退款单写入，不会同时读取相同余额后造成超退。这是“锁定额度所属的聚合根”，而不是只依赖退款单自己的乐观锁。
+
+退款单保存 `orderStatusBeforeRefund`，因为部分退款成功或退款失败时必须知道订单原来是已支付还是已完成。只有累计成功退款等于实付金额，订单才进入 `REFUNDED`。渠道通知使用全局唯一 `notificationId` 去重，同一通知重复到达只返回当前结果；通知 ID 被其他退款占用则产生冲突。实体使用 `@Version` 防止两个不同回调同时推进同一退款单。
+
+用户接口为 `/api/me/refunds`，用户 ID 取自验签后的 Access Token，并通过关联的支付单和订单检查所有权。`GET /api/me/refunds?orderId=...` 可以查看一个订单的全部退款记录。管理接口 `/api/refunds` 受 ADMIN 权限保护；`mock-success` 和 `mock-failure` 仅用于模拟真实支付渠道的异步退款回调。
 
 退款创建与 `refund.requested` Outbox 事件处于同一个数据库事务，保证退款单和待发送事件不会只成功一个。Relay 等到 RabbitMQ Confirm 后才标记事件已发送。消费者通过 `RefundGateway` 调用渠道；渠道抛出异常时异常继续交给 Spring AMQP，经过有限重试仍失败的消息进入退款死信队列。
 
 重复投递可能发生，因此消费者对 `PENDING`、`PROCESSING` 都可以使用退款号作为渠道幂等标识重新提交；终态退款直接跳过。先调用渠道、后记录 `PROCESSING` 可以避免数据库先提交后进程宕机导致请求永远未发送。两者之间宕机可能重复调用渠道，所以真实 `RefundGateway` 必须以退款号实现幂等。
 
-当前模拟渠道只记录“已接受退款”，真实退款结果仍由异步成功/失败回调推进。目前未实现部分退款和人工死信重放。部分退款需要把“一笔支付一个退款”的唯一约束改为一对多，并在并发下保证 `成功金额 + 处理中金额 + 新申请金额 <= 实付金额`，适合作为下一轮演进。
+当前模拟渠道只记录“已接受退款”，真实退款结果仍由异步成功/失败回调推进。V11 使用 Java Flyway Migration 动态查找并移除旧的 `payment_id` 唯一约束，这是因为 PostgreSQL 和 H2 自动生成的约束名称不同；之后重新建立普通外键和查询索引。当前仍未实现按订单项退款、运费分摊和人工死信重放。

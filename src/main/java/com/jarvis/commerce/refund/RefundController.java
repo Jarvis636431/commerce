@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @Validated
 @RestController
@@ -24,6 +25,11 @@ public class RefundController {
 
     @GetMapping("/{refundNo}")
     public RefundResponse get(@PathVariable String refundNo) { return refundService.get(refundNo); }
+
+    @GetMapping
+    public List<RefundResponse> listByOrder(@RequestParam long orderId) {
+        return refundService.listByOrder(orderId);
+    }
 
     @PostMapping("/{refundNo}/mock-success")
     public RefundResponse mockSuccess(@PathVariable String refundNo,

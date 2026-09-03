@@ -125,6 +125,10 @@ public class CustomerOrder {
         status = previousStatus;
     }
 
+    public void markPartiallyRefunded(OrderStatus previousStatus) {
+        restoreAfterRefundFailure(previousStatus);
+    }
+
     private void requireStatus(OrderStatus expected, String message) {
         if (status != expected) {
             throw new ConflictException(message);

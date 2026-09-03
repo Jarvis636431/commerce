@@ -20,8 +20,8 @@ public class RefundOrder {
     @Column(name = "refund_no", nullable = false, unique = true, length = 40)
     private String refundNo;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "payment_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "payment_id", nullable = false)
     private PaymentOrder payment;
 
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 100)

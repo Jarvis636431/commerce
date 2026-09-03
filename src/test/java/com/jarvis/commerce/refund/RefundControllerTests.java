@@ -102,10 +102,63 @@ class RefundControllerTests {
         assertEquals(OrderStatus.PAID, orderRepository.findById(orderId).orElseThrow().getStatus());
     }
 
+    @Test
+    void supportsSequentialPartialRefundsUntilFullyRefunded() throws Exception {
+        createRefund("partial-key-1", "30.00").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(30.00));
+        RefundOrder first = refundRepository.findAll().getFirst();
+        succeed(first.getRefundNo(), "partial-notice-1", "channel-partial-1");
+        assertEquals(OrderStatus.PAID, orderRepository.findById(orderId).orElseThrow().getStatus());
+
+        createRefund("partial-key-2", "58.00").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(58.00));
+        RefundOrder second = refundRepository.findAllByPaymentIdOrderByIdAsc(first.getPayment().getId()).get(1);
+        succeed(second.getRefundNo(), "partial-notice-2", "channel-partial-2");
+
+        assertEquals(2, refundRepository.count());
+        assertEquals(OrderStatus.REFUNDED, orderRepository.findById(orderId).orElseThrow().getStatus());
+    }
+
+    @Test
+    void rejectsAmountAboveRemainingRefundableBalance() throws Exception {
+        createRefund("partial-limit-1", "30.00").andExpect(status().isCreated());
+        RefundOrder first = refundRepository.findAll().getFirst();
+        succeed(first.getRefundNo(), "limit-notice-1", "channel-limit-1");
+
+        createRefund("partial-limit-2", "58.01")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Refund amount exceeds remaining refundable amount: 58.00"));
+
+        assertEquals(1, refundRepository.count());
+    }
+
+    @Test
+    void rejectsSecondRefundWhileFirstIsStillActive() throws Exception {
+        createRefund("active-key-1", "30.00").andExpect(status().isCreated());
+        createRefund("active-key-2", "20.00").andExpect(status().isConflict());
+        assertEquals(1, refundRepository.count());
+    }
+
     private org.springframework.test.web.servlet.ResultActions createRefund(String key) throws Exception {
         return mockMvc.perform(post("/api/refunds")
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"orderId\":" + orderId + ",\"reason\":\"不再需要\"}"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createRefund(String key, String amount)
+            throws Exception {
+        return mockMvc.perform(post("/api/refunds")
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"orderId\":" + orderId + ",\"reason\":\"部分退款\",\"amount\":" + amount + "}"));
+    }
+
+    private void succeed(String refundNo, String notificationId, String externalRefundNo) throws Exception {
+        mockMvc.perform(post("/api/refunds/{refundNo}/mock-success", refundNo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notificationId\":\"" + notificationId +
+                                "\",\"externalRefundNo\":\"" + externalRefundNo + "\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SUCCESS"));
     }
 }

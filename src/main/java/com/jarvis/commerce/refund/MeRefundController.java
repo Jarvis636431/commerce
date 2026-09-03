@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @Validated
 @RestController
@@ -30,5 +31,10 @@ public class MeRefundController {
     @GetMapping("/{refundNo}")
     public RefundResponse get(@PathVariable String refundNo) {
         return refundService.getForUser(refundNo, currentUser.id());
+    }
+
+    @GetMapping
+    public List<RefundResponse> listByOrder(@RequestParam long orderId) {
+        return refundService.listByOrderForUser(orderId, currentUser.id());
     }
 }
