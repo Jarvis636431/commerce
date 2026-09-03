@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -49,17 +50,43 @@ public class RabbitPaymentTimeoutPublisher implements PaymentTimeoutPublisher {
         String eventId = UUID.randomUUID().toString();
         PaymentTimeoutMessage payload = new PaymentTimeoutMessage(
                 eventId, paymentNo, expiresAt, OffsetDateTime.now(clock));
+        CorrelationData correlation = new CorrelationData(eventId);
         try {
             rabbitTemplate.convertAndSend(PAYMENT_COMMAND_EXCHANGE, PAYMENT_TIMEOUT_SCHEDULE_KEY, payload, message -> {
                 message.getMessageProperties().setMessageId(eventId);
                 message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
                 return message;
-            });
-            log.info("Scheduled payment timeout message: paymentNo={}, eventId={}, expiresAt={}",
+            }, correlation);
+            correlation.getFuture().whenComplete((confirm, failure) ->
+                    handleConfirmation(correlation, paymentNo, eventId, confirm, failure));
+            log.info("Submitted payment timeout message: paymentNo={}, eventId={}, expiresAt={}",
                     paymentNo, eventId, expiresAt);
         } catch (RuntimeException exception) {
             log.error("Failed to schedule payment timeout message: paymentNo={}, eventId={}; "
                     + "database timeout scanner will compensate", paymentNo, eventId, exception);
         }
+    }
+
+    private void handleConfirmation(CorrelationData correlation, String paymentNo, String eventId,
+                                    CorrelationData.Confirm confirm, Throwable failure) {
+        if (failure != null) {
+            log.error("Payment timeout publisher confirm failed: paymentNo={}, eventId={}",
+                    paymentNo, eventId, failure);
+            return;
+        }
+        if (!confirm.ack()) {
+            log.error("RabbitMQ rejected payment timeout message: paymentNo={}, eventId={}, reason={}",
+                    paymentNo, eventId, confirm.reason());
+            return;
+        }
+        if (correlation.getReturned() != null) {
+            var returned = correlation.getReturned();
+            log.error("Payment timeout message was returned as unroutable: paymentNo={}, eventId={}, "
+                            + "exchange={}, routingKey={}, replyCode={}, replyText={}",
+                    paymentNo, eventId, returned.getExchange(), returned.getRoutingKey(),
+                    returned.getReplyCode(), returned.getReplyText());
+            return;
+        }
+        log.info("RabbitMQ confirmed payment timeout message: paymentNo={}, eventId={}", paymentNo, eventId);
     }
 }

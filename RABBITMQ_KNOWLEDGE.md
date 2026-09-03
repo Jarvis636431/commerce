@@ -65,15 +65,17 @@ Exchange 和 Queue 解耦了发送方与消费方。订单模块只发布 `order
 - `mandatory=true`：要求不可路由消息触发 Return，而不是静默丢弃。
 - durable Exchange/Queue 与持久消息：降低 Broker 重启造成的丢失风险。
 
-当前配置已经开启 correlated confirm、publisher returns 和 mandatory，后续实现生产者时还要注册 Confirm/Return 回调并记录失败投递。
+当前配置已经开启 correlated confirm、publisher returns 和 mandatory。每条支付超时消息携带独立的 `CorrelationData`：异步回调记录 ACK/NACK，同时检查 ReturnedMessage，区分“Broker 拒绝”和“Exchange 无法路由”。当前只记录失败并依赖扫描补偿，后续 Outbox 会把失败投递变成可持久化重试的状态。
 
 ### 3.3 Broker 与 Consumer
 
-手动 ACK 表示消费者完成数据库事务后才确认：
+ACK 应在消费者完成数据库事务后发生：
 
-- `basicAck`：处理成功，可以删除消息。
-- `basicNack/basicReject + requeue=true`：重新入队；持续失败时可能形成无限循环。
+- ACK：处理成功，可以删除消息。
+- NACK/Reject 且 `requeue=true`：重新入队；持续失败时可能形成无限循环。
 - `requeue=false`：拒绝消息；配置 DLX 后进入死信队列。
+
+当前 Listener 使用容器 AUTO ACK：方法正常返回后确认，抛出异常则不确认。Spring Retry 最多执行三次退避重试，间隔依次增长且最大为 4 秒；耗尽后 `RejectAndDontRequeueRecoverer` 拒绝消息，由 DLX 路由到死信队列。这里的 AUTO 不是“消息一到就确认”，而是由 Listener 容器在方法成功返回后确认。
 
 消费者可能在数据库提交后、ACK 前崩溃，Broker 会再次投递，因此实际语义通常是“至少一次”，业务消费者必须幂等。
 

@@ -23,8 +23,14 @@ spring:
       mandatory: true
     listener:
       simple:
-        acknowledge-mode: manual
+        acknowledge-mode: auto
         default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-retries: 3
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 4s
   jpa:
     open-in-view: false
     hibernate:
