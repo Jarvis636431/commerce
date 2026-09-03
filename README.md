@@ -204,6 +204,14 @@ POST /api/users/{id}/enable
 ### Address
 
 ```http
+POST   /api/me/addresses
+GET    /api/me/addresses
+GET    /api/me/addresses/{addressId}
+PUT    /api/me/addresses/{addressId}
+POST   /api/me/addresses/{addressId}/default
+DELETE /api/me/addresses/{addressId}
+
+# 以下为管理员接口
 POST   /api/users/{userId}/addresses
 GET    /api/users/{userId}/addresses
 GET    /api/users/{userId}/addresses/{addressId}
@@ -235,6 +243,14 @@ POST /api/skus/{skuId}/inventory/release
 ### Cart
 
 ```http
+GET    /api/me/cart
+POST   /api/me/cart/items
+PUT    /api/me/cart/items/{skuId}
+DELETE /api/me/cart/items/{skuId}
+DELETE /api/me/cart
+POST   /api/me/cart/checkout
+
+# 以下为管理员接口
 GET    /api/users/{userId}/cart
 POST   /api/users/{userId}/cart/items
 PUT    /api/users/{userId}/cart/items/{skuId}
@@ -246,6 +262,12 @@ POST   /api/users/{userId}/cart/checkout
 ### Order
 
 ```http
+POST /api/me/orders
+GET  /api/me/orders/{id}
+GET  /api/me/orders?page=0&size=20
+POST /api/me/orders/{id}/cancel
+
+# 以下为管理员接口
 POST /api/orders
 GET  /api/orders/{id}
 GET  /api/orders?page=0&size=20&userId=1
@@ -259,6 +281,12 @@ POST /api/orders/{id}/complete
 ### Payment
 
 ```http
+POST /api/me/payments                         Idempotency-Key 请求头必填
+GET  /api/me/payments/{paymentNo}
+POST /api/me/payments/{paymentNo}/retry
+POST /api/me/payments/{paymentNo}/close
+
+# 以下为管理员及支付回调模拟接口
 POST /api/payments                         Idempotency-Key 请求头必填
 GET  /api/payments/{paymentNo}
 POST /api/payments/{paymentNo}/mock-success
@@ -281,5 +309,5 @@ commerce:
 1. 真实支付渠道、签名验证和支付查询补偿
 2. Redis 商品缓存
 3. MQ 延迟关单、库存释放和异步通知
-4. 将购物车、地址和订单迁移为 `/api/me/**`
+4. 接入真实支付渠道、Webhook 签名验证与异常支付补偿
 5. 监控、压测与并发策略对比

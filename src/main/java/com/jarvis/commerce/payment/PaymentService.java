@@ -41,8 +41,20 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse create(CreatePaymentRequest request, String idempotencyKey) {
+        return createPayment(request, idempotencyKey, null);
+    }
+
+    @Transactional
+    public PaymentResponse createForUser(CreatePaymentRequest request, String idempotencyKey, long userId) {
+        return createPayment(request, idempotencyKey, userId);
+    }
+
+    private PaymentResponse createPayment(CreatePaymentRequest request, String idempotencyKey, Long userId) {
         PaymentOrder existing = paymentRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
         if (existing != null) {
+            if (userId != null && !userId.equals(existing.getOrder().getUserId())) {
+                throw new ResourceNotFoundException("Order %d was not found".formatted(request.orderId()));
+            }
             if (!existing.getOrder().getId().equals(request.orderId())) {
                 throw new ConflictException("Idempotency key was already used for another order");
             }
@@ -52,7 +64,9 @@ public class PaymentService {
         if (paymentRepository.findByOrderId(request.orderId()).isPresent()) {
             throw new ConflictException("A payment already exists for order %d".formatted(request.orderId()));
         }
-        CustomerOrder order = orderRepository.findById(request.orderId())
+        CustomerOrder order = (userId == null
+                ? orderRepository.findById(request.orderId())
+                : orderRepository.findByIdAndUserId(request.orderId(), userId))
                 .orElseThrow(() -> new ResourceNotFoundException("Order %d was not found".formatted(request.orderId())));
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new ConflictException("Only pending orders can create a payment");
@@ -67,6 +81,11 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public PaymentResponse get(String paymentNo) {
         return PaymentResponse.from(findPayment(paymentNo));
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentResponse getForUser(String paymentNo, long userId) {
+        return PaymentResponse.from(findPaymentForUser(paymentNo, userId));
     }
 
     @Transactional
@@ -110,16 +129,25 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse close(String paymentNo) {
-        PaymentOrder payment = findPayment(paymentNo);
-        payment.close();
-        orderService.cancel(payment.getOrder().getId());
-        paymentRepository.flush();
-        return PaymentResponse.from(payment);
+        return closePayment(findPayment(paymentNo));
+    }
+
+    @Transactional
+    public PaymentResponse closeForUser(String paymentNo, long userId) {
+        return closePayment(findPaymentForUser(paymentNo, userId));
     }
 
     @Transactional
     public PaymentResponse retry(String paymentNo) {
-        PaymentOrder payment = findPayment(paymentNo);
+        return retryPayment(findPayment(paymentNo));
+    }
+
+    @Transactional
+    public PaymentResponse retryForUser(String paymentNo, long userId) {
+        return retryPayment(findPaymentForUser(paymentNo, userId));
+    }
+
+    private PaymentResponse retryPayment(PaymentOrder payment) {
         if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new ConflictException("Payment cannot be retried because the order is no longer pending");
         }
@@ -143,6 +171,18 @@ public class PaymentService {
     private PaymentOrder findPayment(String paymentNo) {
         return paymentRepository.findByPaymentNo(paymentNo)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment %s was not found".formatted(paymentNo)));
+    }
+
+    private PaymentOrder findPaymentForUser(String paymentNo, long userId) {
+        return paymentRepository.findByPaymentNoAndOrderUserId(paymentNo, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment %s was not found".formatted(paymentNo)));
+    }
+
+    private PaymentResponse closePayment(PaymentOrder payment) {
+        payment.close();
+        orderService.cancel(payment.getOrder().getId());
+        paymentRepository.flush();
+        return PaymentResponse.from(payment);
     }
 
     private boolean notificationAlreadyHandled(PaymentOrder payment, String notificationId) {

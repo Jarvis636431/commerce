@@ -564,3 +564,18 @@ Refresh Token 是 256 位安全随机数，有效期 30 天。客户端拿到原
 测试 profile 默认放行旧业务接口，保证现有模块测试聚焦业务；安全测试显式关闭放行配置，真实验证 401、403、JWT、刷新轮换和角色权限。生产配置中商品读取及认证接口公开，用户、订单、支付和管理写接口受到角色保护。
 
 当前签名使用共享 HMAC 密钥，适合单体学习项目。生产环境必须通过 `AUTH_JWT_SECRET` 注入至少 32 字节的随机密钥，不能使用仓库中的开发默认值。未来演进到独立 SSO 时应改用非对称密钥和公开 JWK，让资源服务只持有公钥。
+
+## 23. 把认证身份接入业务
+
+登录成功只是认证的开始。用户业务接口统一使用 `/api/me/**`，由 `CurrentUser` 从 Spring Security 的 `SecurityContext` 中读取已经验签的 JWT `sub`，得到当前用户 ID。客户端不再提交 `userId`，避免它通过篡改参数冒充其他用户。
+
+只隐藏 `userId` 还不够，Service 和 Repository 查询资源时也必须同时匹配资源 ID 与当前用户 ID，例如：
+
+```text
+findByIdAndUserId(orderId, currentUserId)
+findByPaymentNoAndOrderUserId(paymentNo, currentUserId)
+```
+
+查不到时统一返回 404，不向调用者透露该资源是否属于其他用户。这防止了水平越权（IDOR）：攻击者即使猜到递增 ID 或支付号，也不能读取、取消或重试别人的资源。
+
+管理员接口仍保留 `/api/users/{userId}/**`、`/api/orders/**` 和 `/api/payments/**`，并由 Spring Security 限制为 `ADMIN`。支付成功/失败模拟接口不暴露在 `/api/me/payments` 下，因为真实系统中支付状态应由经过签名验证的渠道回调推进，不能由普通用户自行声明成功。

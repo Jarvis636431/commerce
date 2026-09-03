@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
     Optional<PaymentOrder> findByPaymentNo(String paymentNo);
+    Optional<PaymentOrder> findByPaymentNoAndOrderUserId(String paymentNo, Long userId);
     Optional<PaymentOrder> findByIdempotencyKey(String idempotencyKey);
     Optional<PaymentOrder> findByOrderId(Long orderId);
     List<PaymentOrder> findTop100ByStatusAndExpiresAtLessThanEqualOrderByIdAsc(

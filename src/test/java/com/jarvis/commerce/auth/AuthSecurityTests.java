@@ -96,6 +96,32 @@ class AuthSecurityTests {
                 .andExpect(jsonPath("$.detail").value("Invalid account or password"));
     }
 
+    @Test
+    void derivesBusinessOwnerFromTokenAndPreventsHorizontalAccess() throws Exception {
+        Tokens owner = register("address-owner");
+        Tokens anotherUser = register("address-stranger");
+        String addressBody = """
+                {"label":"home","receiverName":"Jarvis","phone":"13800138000",
+                 "province":"Shanghai","city":"Shanghai","district":"Pudong",
+                 "detailAddress":"No. 1 Road","postalCode":"200000","defaultAddress":true}
+                """;
+
+        JsonNode address = body(mockMvc.perform(post("/api/me/addresses")
+                        .header("Authorization", "Bearer " + owner.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(addressBody))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        long addressId = address.get("id").asLong();
+
+        mockMvc.perform(get("/api/me/addresses/{id}", addressId)
+                        .header("Authorization", "Bearer " + owner.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(address.get("userId").asLong()));
+
+        mockMvc.perform(get("/api/me/addresses/{id}", addressId)
+                        .header("Authorization", "Bearer " + anotherUser.accessToken()))
+                .andExpect(status().isNotFound());
+    }
+
     private Tokens register(String username) throws Exception {
         long unique = System.nanoTime();
         String body = "{\"username\":\"" + username + "\",\"email\":\"" + username + "-"
