@@ -30,6 +30,8 @@ MinIO 提供兼容 S3 的对象 API。应用通过 MinIO Java SDK 访问它，�
 
 ## 本地运行
 
+MinIO 9 使用 OkHttp 5。它的通用 `okhttp` artifact 只包含 Kotlin Multiplatform 元数据，Maven 不会像 Gradle 一样自动选择 JVM variant，因此项目显式声明了同版本的 `okhttp-jvm`。如果缺少它，编译时会看到“找不到 `okhttp3.HttpUrl`”错误。
+
 启动 MinIO：
 
 ```bash
