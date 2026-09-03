@@ -12,6 +12,18 @@ spring:
       timeout: 2s
       repositories:
         enabled: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:commerce}
+    password: ${RABBITMQ_PASSWORD:commerce}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
   jpa:
     open-in-view: false
     hibernate:
@@ -27,6 +39,8 @@ management:
         include: health,info
 
 commerce:
+  messaging:
+    enabled: true
   security:
     issuer: commerce
     access-token-ttl: PT15M

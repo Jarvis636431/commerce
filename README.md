@@ -2,7 +2,7 @@
 
 一个用于系统学习 Java 后端生态的电商项目。目前采用 Java 21、Spring Boot、Spring MVC、Spring Data JPA、Flyway 和 PostgreSQL，以模块化单体的方式逐步实现商品、库存、订单、缓存和消息等能力。
 
-详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)。
+详细的架构与原理笔记见 [KNOWLEDGE.md](KNOWLEDGE.md)，Redis 专题见 [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md)，消息队列专题见 [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md)。
 
 ## 当前能力
 
@@ -33,6 +33,7 @@
 - Spring Security / OAuth2 Resource Server
 - PostgreSQL
 - Redis / Spring Data Redis
+- RabbitMQ / Spring AMQP
 - Flyway
 - H2（测试）
 - Maven Wrapper
@@ -69,10 +70,10 @@ Controller → Service → Repository → JPA/Hibernate → Database
 - Docker Desktop 或兼容的 Docker 环境
 - Make（可选，命令也可以直接执行）
 
-启动 PostgreSQL：
+启动 PostgreSQL、Redis 和 RabbitMQ：
 
 ```bash
-make db-up
+make infra-up
 ```
 
 查看数据库状态：
@@ -93,10 +94,12 @@ make run
 curl http://localhost:8080/actuator/health
 ```
 
-停止 PostgreSQL：
+RabbitMQ 管理界面为 `http://localhost:15672`，开发环境用户名和密码均为 `commerce`。
+
+停止本地基础设施：
 
 ```bash
-make db-down
+make infra-down
 ```
 
 ## 运行测试

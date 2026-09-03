@@ -1,4 +1,4 @@
-.PHONY: test run clean db-up db-down db-status db-logs redis-up redis-down redis-status redis-logs redis-cli infra-up infra-down
+.PHONY: test run clean db-up db-down db-status db-logs redis-up redis-down redis-status redis-logs redis-cli rabbit-up rabbit-down rabbit-status rabbit-logs infra-up infra-down
 
 test:
 	./mvnw test
@@ -36,8 +36,20 @@ redis-logs:
 redis-cli:
 	docker compose exec redis redis-cli
 
+rabbit-up:
+	docker compose up -d rabbitmq
+
+rabbit-down:
+	docker compose stop rabbitmq
+
+rabbit-status:
+	docker compose ps rabbitmq
+
+rabbit-logs:
+	docker compose logs -f rabbitmq
+
 infra-up:
-	docker compose up -d postgres redis
+	docker compose up -d postgres redis rabbitmq
 
 infra-down:
-	docker compose stop postgres redis
+	docker compose stop postgres redis rabbitmq

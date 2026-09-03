@@ -8,6 +8,8 @@ spring:
       ddl-auto: validate
 
 commerce:
+  messaging:
+    enabled: false
   security:
     permit-all: true
     jwt-secret: test-secret-that-is-longer-than-thirty-two-bytes

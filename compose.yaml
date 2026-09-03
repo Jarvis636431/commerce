@@ -28,6 +28,23 @@ services:
       timeout: 3s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: commerce
+      RABBITMQ_DEFAULT_PASS: commerce
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - commerce-rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
 volumes:
   commerce-postgres-data:
   commerce-redis-data:
+  commerce-rabbitmq-data:
