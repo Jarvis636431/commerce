@@ -64,7 +64,7 @@ groups:
           description: 最近 10 分钟出现支付超时消息处理失败。
 
       - alert: CommerceRefundPending
-        expr: commerce_refund_orders{application="commerce",status="PENDING"} > 20
+        expr: sum(commerce_refund_orders{application="commerce",status=~"PENDING|PROCESSING"}) > 20
         for: 10m
         labels:
           severity: warning

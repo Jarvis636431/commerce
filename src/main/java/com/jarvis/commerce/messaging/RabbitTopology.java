@@ -14,6 +14,13 @@ public final class RabbitTopology {
     public static final String PAYMENT_DEAD_LETTER_QUEUE = "commerce.payment.dead-letter";
     public static final String PAYMENT_DEAD_LETTER_KEY = "payment.dead-letter";
 
+    public static final String REFUND_COMMAND_EXCHANGE = "commerce.refund.command";
+    public static final String REFUND_REQUEST_QUEUE = "commerce.refund.request";
+    public static final String REFUND_REQUEST_KEY = "refund.request";
+    public static final String REFUND_DEAD_LETTER_EXCHANGE = "commerce.refund.dlx";
+    public static final String REFUND_DEAD_LETTER_QUEUE = "commerce.refund.dead-letter";
+    public static final String REFUND_DEAD_LETTER_KEY = "refund.dead-letter";
+
     private RabbitTopology() {
     }
 }

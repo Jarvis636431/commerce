@@ -494,3 +494,28 @@ remainingDelay = max(0, expiresAt - 当前时间)
 - 当前悲观锁方案兼容 H2 测试和 PostgreSQL；规模增大后可使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 提高多实例抢占吞吐。
 - 当前按事件逐条等待 Confirm，逻辑清晰但吞吐有限；后续可以批量异步 Confirm，同时维护 eventId 与结果的关联。
 - 生产者至少一次不替代消费者幂等，也不替代 RabbitMQ 和数据库监控。
+
+## 13. 退款异步提交链路
+
+退款申请复用了同一套通用 Outbox 表和 Relay，但使用独立的 RabbitMQ Exchange、Queue 与 DLQ：
+
+```text
+refund_order(PENDING) + outbox_event(refund.requested)
+→ OutboxRelay
+→ commerce.refund.command
+→ commerce.refund.request
+→ RefundRequestedConsumer
+→ RefundGateway
+→ refund_order(PROCESSING)
+→ 等待渠道异步成功/失败回调
+```
+
+退款队列没有延迟 TTL，因为退款申请创建后应立即提交渠道。消费者抛出异常时由 Spring AMQP 进行三次退避重试；仍然失败的消息被拒绝，并通过 DLX 路由到 `commerce.refund.dead-letter`，等待告警和人工处理。
+
+消费者先调用渠道，渠道接受后再把退款单标记为 `PROCESSING`。如果先更新数据库再调用渠道，两个操作之间宕机会留下“数据库显示处理中、渠道却从未收到”的永久不一致。当前顺序仍存在另一个窗口：渠道已经接受，但数据库更新前宕机，消息会被再次消费。因此渠道请求必须使用 `refundNo` 作为幂等键，重复提交返回同一个退款请求结果。
+
+```text
+至少一次消息投递 + 渠道幂等键 + 本地退款状态机
+```
+
+终态为 `SUCCESS` 或 `FAILED` 的退款遇到重复消息时直接跳过。`PENDING` 和 `PROCESSING` 可以重新向渠道提交，因为进程可能在渠道接受后、记录状态前崩溃。真实渠道回调也使用全局唯一 `notificationId` 去重，消息幂等和回调幂等缺一不可。

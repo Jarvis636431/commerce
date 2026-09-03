@@ -626,8 +626,10 @@ Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、�
 
 ```text
 订单 PAID / COMPLETED
-→ 创建 RefundOrder(PENDING)
+→ 同一事务创建 RefundOrder(PENDING) + OutboxEvent
 → 订单 REFUNDING
+→ Outbox Relay → RabbitMQ → 退款消费者
+→ 渠道接受请求：RefundOrder PROCESSING
 → 渠道成功回调：RefundOrder SUCCESS → 订单 REFUNDED
 → 渠道失败回调：RefundOrder FAILED → 订单恢复 PAID / COMPLETED
 ```
@@ -636,4 +638,8 @@ Alertmanager 接收 Firing/Resolved 告警，负责去重、分组、静默、�
 
 用户接口为 `/api/me/refunds`，用户 ID 取自验签后的 Access Token，并通过关联的支付单和订单检查所有权。管理接口 `/api/refunds` 受 ADMIN 权限保护；`mock-success` 和 `mock-failure` 仅用于模拟真实支付渠道的异步退款回调。
 
-目前未实现部分退款、自动渠道请求、失败重试和退款 Outbox。部分退款需要把“一笔支付一个退款”的唯一约束改为一对多，并在并发下保证 `成功金额 + 处理中金额 + 新申请金额 <= 实付金额`，适合作为下一轮演进。
+退款创建与 `refund.requested` Outbox 事件处于同一个数据库事务，保证退款单和待发送事件不会只成功一个。Relay 等到 RabbitMQ Confirm 后才标记事件已发送。消费者通过 `RefundGateway` 调用渠道；渠道抛出异常时异常继续交给 Spring AMQP，经过有限重试仍失败的消息进入退款死信队列。
+
+重复投递可能发生，因此消费者对 `PENDING`、`PROCESSING` 都可以使用退款号作为渠道幂等标识重新提交；终态退款直接跳过。先调用渠道、后记录 `PROCESSING` 可以避免数据库先提交后进程宕机导致请求永远未发送。两者之间宕机可能重复调用渠道，所以真实 `RefundGateway` 必须以退款号实现幂等。
+
+当前模拟渠道只记录“已接受退款”，真实退款结果仍由异步成功/失败回调推进。目前未实现部分退款和人工死信重放。部分退款需要把“一笔支付一个退款”的唯一约束改为一对多，并在并发下保证 `成功金额 + 处理中金额 + 新申请金额 <= 实付金额`，适合作为下一轮演进。

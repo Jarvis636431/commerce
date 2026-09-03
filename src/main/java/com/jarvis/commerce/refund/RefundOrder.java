@@ -71,21 +71,32 @@ public class RefundOrder {
     }
 
     public void markSuccess(String externalRefundNo) {
-        requirePending();
+        requireInProgress();
         this.externalRefundNo = externalRefundNo;
         this.failureReason = null;
         this.status = RefundStatus.SUCCESS;
     }
 
     public void markFailed(String failureReason) {
-        requirePending();
+        requireInProgress();
         this.failureReason = failureReason;
         this.status = RefundStatus.FAILED;
     }
 
-    private void requirePending() {
-        if (status != RefundStatus.PENDING) {
-            throw new ConflictException("Only pending refunds can be completed");
+    public boolean markProcessing() {
+        if (status == RefundStatus.PROCESSING) return false;
+        if (status != RefundStatus.PENDING) return false;
+        status = RefundStatus.PROCESSING;
+        return true;
+    }
+
+    public boolean canSubmit() {
+        return status == RefundStatus.PENDING || status == RefundStatus.PROCESSING;
+    }
+
+    private void requireInProgress() {
+        if (!canSubmit()) {
+            throw new ConflictException("Only pending or processing refunds can be completed");
         }
     }
 

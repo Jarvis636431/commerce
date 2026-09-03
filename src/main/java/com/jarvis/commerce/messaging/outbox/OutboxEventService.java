@@ -1,6 +1,7 @@
 package com.jarvis.commerce.messaging.outbox;
 
 import com.jarvis.commerce.payment.PaymentTimeoutMessage;
+import com.jarvis.commerce.refund.RefundRequestedMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
 
 @Service
 public class OutboxEventService {
@@ -46,6 +48,15 @@ public class OutboxEventService {
         PaymentTimeoutMessage message = new PaymentTimeoutMessage(eventId, paymentNo, expiresAt, now);
         repository.save(new OutboxEvent(eventId, "PAYMENT", paymentNo,
                 PAYMENT_TIMEOUT_SCHEDULED, objectMapper.writeValueAsString(message), now));
+    }
+
+    @Transactional
+    public void requestRefund(String refundNo) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        String eventId = UUID.randomUUID().toString();
+        RefundRequestedMessage message = new RefundRequestedMessage(eventId, refundNo, now);
+        repository.save(new OutboxEvent(eventId, "REFUND", refundNo,
+                REFUND_REQUESTED, objectMapper.writeValueAsString(message), now));
     }
 
     @Transactional

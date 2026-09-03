@@ -1,6 +1,7 @@
 package com.jarvis.commerce.messaging.outbox;
 
 import com.jarvis.commerce.payment.PaymentTimeoutMessage;
+import com.jarvis.commerce.refund.RefundRequestedMessage;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -16,7 +17,10 @@ import java.util.concurrent.TimeUnit;
 
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_COMMAND_EXCHANGE;
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_SCHEDULE_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_COMMAND_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_KEY;
 import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.PAYMENT_TIMEOUT_SCHEDULED;
+import static com.jarvis.commerce.messaging.outbox.OutboxEventTypes.REFUND_REQUESTED;
 
 @Component
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
@@ -37,20 +41,40 @@ public class RabbitOutboxPublisher {
     }
 
     public void publishAndWaitForConfirm(ClaimedOutboxEvent event) {
-        if (!PAYMENT_TIMEOUT_SCHEDULED.equals(event.eventType())) {
+        if (PAYMENT_TIMEOUT_SCHEDULED.equals(event.eventType())) {
+            publishPaymentTimeout(event);
+        } else if (REFUND_REQUESTED.equals(event.eventType())) {
+            publishRefundRequest(event);
+        } else {
             throw new IllegalArgumentException("Unsupported outbox event type: " + event.eventType());
         }
+    }
+
+    private void publishPaymentTimeout(ClaimedOutboxEvent event) {
         PaymentTimeoutMessage payload = objectMapper.readValue(event.payload(), PaymentTimeoutMessage.class);
-        CorrelationData correlation = new CorrelationData(event.eventId());
         long remainingDelay = Math.max(0,
                 Duration.between(OffsetDateTime.now(clock), payload.expiresAt()).toMillis());
-
-        rabbitTemplate.convertAndSend(PAYMENT_COMMAND_EXCHANGE, PAYMENT_TIMEOUT_SCHEDULE_KEY, payload, message -> {
+        publish(event, PAYMENT_COMMAND_EXCHANGE, PAYMENT_TIMEOUT_SCHEDULE_KEY, payload, message -> {
             message.getMessageProperties().setMessageId(event.eventId());
             message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
             message.getMessageProperties().setExpiration(Long.toString(remainingDelay));
             return message;
-        }, correlation);
+        });
+    }
+
+    private void publishRefundRequest(ClaimedOutboxEvent event) {
+        RefundRequestedMessage payload = objectMapper.readValue(event.payload(), RefundRequestedMessage.class);
+        publish(event, REFUND_COMMAND_EXCHANGE, REFUND_REQUEST_KEY, payload, message -> {
+            message.getMessageProperties().setMessageId(event.eventId());
+            message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+            return message;
+        });
+    }
+
+    private void publish(ClaimedOutboxEvent event, String exchange, String routingKey, Object payload,
+                         org.springframework.amqp.core.MessagePostProcessor postProcessor) {
+        CorrelationData correlation = new CorrelationData(event.eventId());
+        rabbitTemplate.convertAndSend(exchange, routingKey, payload, postProcessor, correlation);
 
         try {
             CorrelationData.Confirm confirm = correlation.getFuture()

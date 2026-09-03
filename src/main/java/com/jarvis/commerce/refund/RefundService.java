@@ -3,6 +3,7 @@ package com.jarvis.commerce.refund;
 import com.jarvis.commerce.common.ConflictException;
 import com.jarvis.commerce.common.ResourceNotFoundException;
 import com.jarvis.commerce.order.CustomerOrder;
+import com.jarvis.commerce.messaging.outbox.OutboxEventService;
 import com.jarvis.commerce.payment.PaymentOrder;
 import com.jarvis.commerce.payment.PaymentOrderRepository;
 import com.jarvis.commerce.payment.PaymentStatus;
@@ -17,14 +18,17 @@ public class RefundService {
     private final RefundNotificationRepository notificationRepository;
     private final PaymentOrderRepository paymentRepository;
     private final RefundMetrics metrics;
+    private final OutboxEventService outboxService;
 
     public RefundService(RefundOrderRepository refundRepository,
                          RefundNotificationRepository notificationRepository,
-                         PaymentOrderRepository paymentRepository, RefundMetrics metrics) {
+                         PaymentOrderRepository paymentRepository, RefundMetrics metrics,
+                         OutboxEventService outboxService) {
         this.refundRepository = refundRepository;
         this.notificationRepository = notificationRepository;
         this.paymentRepository = paymentRepository;
         this.metrics = metrics;
+        this.outboxService = outboxService;
     }
 
     @Transactional
@@ -61,6 +65,7 @@ public class RefundService {
         CustomerOrder order = payment.getOrder();
         RefundOrder refund = refundRepository.save(new RefundOrder(generateRefundNo(), payment, idempotencyKey,
                 payment.getAmount(), request.reason().trim(), order.beginRefund()));
+        outboxService.requestRefund(refund.getRefundNo());
         refundRepository.flush();
         metrics.recordCreated();
         return RefundResponse.from(refund);
@@ -104,6 +109,20 @@ public class RefundService {
         refundRepository.flush();
         metrics.recordFailure();
         return RefundResponse.from(refund);
+    }
+
+    @Transactional(readOnly = true)
+    public RefundSubmission requireSubmission(String refundNo) {
+        RefundOrder refund = findRefund(refundNo);
+        if (!refund.canSubmit()) return null;
+        return new RefundSubmission(refund.getRefundNo(), refund.getPayment().getPaymentNo(),
+                refund.getAmount(), refund.getReason());
+    }
+
+    @Transactional
+    public void markProcessing(String refundNo) {
+        RefundOrder refund = findRefund(refundNo);
+        refund.markProcessing();
     }
 
     private boolean notificationAlreadyHandled(RefundOrder refund, String notificationId) {

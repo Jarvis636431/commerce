@@ -23,6 +23,12 @@ import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_DELAY
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_DUE_KEY;
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_QUEUE;
 import static com.jarvis.commerce.messaging.RabbitTopology.PAYMENT_TIMEOUT_SCHEDULE_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_COMMAND_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_DEAD_LETTER_EXCHANGE;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_DEAD_LETTER_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_DEAD_LETTER_QUEUE;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_KEY;
+import static com.jarvis.commerce.messaging.RabbitTopology.REFUND_REQUEST_QUEUE;
 
 @Configuration
 @ConditionalOnProperty(name = "commerce.messaging.enabled", havingValue = "true", matchIfMissing = true)
@@ -91,5 +97,39 @@ public class RabbitMqConfiguration {
         return BindingBuilder.bind(paymentDeadLetterQueue)
                 .to(paymentDeadLetterExchange)
                 .with(PAYMENT_DEAD_LETTER_KEY);
+    }
+
+    @Bean
+    DirectExchange refundCommandExchange() {
+        return new DirectExchange(REFUND_COMMAND_EXCHANGE, true, false);
+    }
+
+    @Bean
+    DirectExchange refundDeadLetterExchange() {
+        return new DirectExchange(REFUND_DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    @Bean
+    Queue refundRequestQueue() {
+        return QueueBuilder.durable(REFUND_REQUEST_QUEUE)
+                .deadLetterExchange(REFUND_DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(REFUND_DEAD_LETTER_KEY)
+                .build();
+    }
+
+    @Bean
+    Binding refundRequestBinding(Queue refundRequestQueue, DirectExchange refundCommandExchange) {
+        return BindingBuilder.bind(refundRequestQueue).to(refundCommandExchange).with(REFUND_REQUEST_KEY);
+    }
+
+    @Bean
+    Queue refundDeadLetterQueue() {
+        return QueueBuilder.durable(REFUND_DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding refundDeadLetterBinding(Queue refundDeadLetterQueue, DirectExchange refundDeadLetterExchange) {
+        return BindingBuilder.bind(refundDeadLetterQueue)
+                .to(refundDeadLetterExchange).with(REFUND_DEAD_LETTER_KEY);
     }
 }

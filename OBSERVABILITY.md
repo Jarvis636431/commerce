@@ -174,7 +174,7 @@ Grafana 会自动配置 Prometheus、Loki 两个数据源，并加载 `Commerce 
 | Outbox 积压 | PENDING 超过 100 持续 5 分钟 | warning |
 | Outbox 永久失败 | FAILED 大于 0 | critical |
 | 支付超时处理失败 | 10 分钟内出现失败 | critical |
-| 退款积压 | PENDING 超过 20 持续 10 分钟 | warning |
+| 退款积压 | PENDING 与 PROCESSING 合计超过 20 持续 10 分钟 | warning |
 | 退款失败 | 10 分钟内出现失败 | warning |
 
 表达式负责定义“什么是不正常”，`for` 负责要求异常持续一段时间。瞬间抖动不会立即通知，可以减少误报。Alertmanager 不负责计算 PromQL，它负责接收已经触发的告警，然后分组、去重、静默和发送。

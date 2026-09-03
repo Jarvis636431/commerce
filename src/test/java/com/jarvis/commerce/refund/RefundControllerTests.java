@@ -4,6 +4,8 @@ import com.jarvis.commerce.inventory.Inventory;
 import com.jarvis.commerce.inventory.InventoryRepository;
 import com.jarvis.commerce.order.*;
 import com.jarvis.commerce.payment.*;
+import com.jarvis.commerce.messaging.outbox.OutboxEventRepository;
+import com.jarvis.commerce.messaging.outbox.OutboxEventTypes;
 import com.jarvis.commerce.product.*;
 import com.jarvis.commerce.user.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,7 @@ class RefundControllerTests {
     @Autowired CustomerOrderRepository orderRepository;
     @Autowired PaymentService paymentService;
     @Autowired RefundOrderRepository refundRepository;
+    @Autowired OutboxEventRepository outboxRepository;
 
     private Long orderId;
 
@@ -69,6 +72,8 @@ class RefundControllerTests {
 
         RefundOrder refund = refundRepository.findAll().getFirst();
         assertEquals(1, refundRepository.count());
+        assertEquals(1, outboxRepository.countByAggregateTypeAndAggregateIdAndEventType(
+                "REFUND", refund.getRefundNo(), OutboxEventTypes.REFUND_REQUESTED));
         assertEquals(OrderStatus.REFUNDING, orderRepository.findById(orderId).orElseThrow().getStatus());
 
         String body = """
