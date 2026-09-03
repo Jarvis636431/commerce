@@ -6,17 +6,19 @@
 
 ## 文档导航
 
+全部专题也可以从 [文档中心](docs/README.md) 统一浏览。
+
 | 文档 | 内容 |
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | 已完成能力、下一阶段和工程化验收标准 |
-| [KNOWLEDGE.md](KNOWLEDGE.md) | 项目架构与核心 Java 后端知识 |
-| [REDIS_KNOWLEDGE.md](REDIS_KNOWLEDGE.md) | 缓存、购物车、热 Key 与大 Key |
-| [RABBITMQ_KNOWLEDGE.md](RABBITMQ_KNOWLEDGE.md) | RabbitMQ、可靠投递、Outbox 与 DLQ |
-| [MQ_INTERVIEW.md](MQ_INTERVIEW.md) | MQ 高频面试知识 |
-| [ELASTICSEARCH.md](ELASTICSEARCH.md) | 商品索引、搜索和最终一致性 |
-| [MINIO.md](MINIO.md) | S3 对象存储与商品图片 |
-| [OBSERVABILITY.md](OBSERVABILITY.md) | Prometheus、Loki、Alloy、Grafana 与告警 |
-| [CI_CD.md](CI_CD.md) | GitHub Actions、Docker 与 GHCR 镜像交付 |
+| [架构与核心知识](docs/KNOWLEDGE.md) | 项目架构与核心 Java 后端知识 |
+| [Redis 专题](docs/REDIS_KNOWLEDGE.md) | 缓存、购物车、热 Key 与大 Key |
+| [RabbitMQ 专题](docs/RABBITMQ_KNOWLEDGE.md) | RabbitMQ、可靠投递、Outbox 与 DLQ |
+| [MQ 面试复习](docs/MQ_INTERVIEW.md) | MQ 高频面试知识 |
+| [Elasticsearch 专题](docs/ELASTICSEARCH.md) | 商品索引、搜索和最终一致性 |
+| [MinIO 专题](docs/MINIO.md) | S3 对象存储与商品图片 |
+| [可观测性](docs/OBSERVABILITY.md) | Prometheus、Loki、Alloy、Grafana 与告警 |
+| [CI/CD](docs/CI_CD.md) | GitHub Actions、Docker 与 GHCR 镜像交付 |
 
 ## 当前能力
 
@@ -157,7 +159,7 @@ make test
 docker build -t commerce:local .
 ```
 
-Pull Request 和 main 分支 Push 会运行 Maven 测试与容器构建验证；main 和 `v*` 标签会把带 Commit SHA 的镜像发布到 GHCR。具体边界、标签和 Secret 说明见 [CI_CD.md](CI_CD.md)。
+Pull Request 和 main 分支 Push 会运行 Maven 测试与容器构建验证；main 和 `v*` 标签会把带 Commit SHA 的镜像发布到 GHCR。具体边界、标签和 Secret 说明见 [CI/CD 文档](docs/CI_CD.md)。
 
 ## 快速体验
 
